@@ -28,6 +28,7 @@ class RGBmatrixPanel {
  public:
   RGBmatrixPanel(uint8_t a, uint8_t b, uint8_t c, uint8_t latch, uint8_t oe);
   void begin();
+  uint16_t Color333(uint8_t r, uint8_t g, uint8_t b);
   uint16_t Color444(uint8_t r, uint8_t g, uint8_t b);
   uint16_t Color888(uint8_t r, uint8_t g, uint8_t b);
   void setPixel(uint8_t x, uint8_t y, uint16_t c);

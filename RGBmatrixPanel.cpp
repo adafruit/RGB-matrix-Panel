@@ -55,6 +55,10 @@ void RGBmatrixPanel::begin(void) {
   RGBMATRIX_CLOCKDDR |= _BV(RGBMATRIX_CLOCKPIN);
 }
 
+uint16_t RGBmatrixPanel::Color333(uint8_t r, uint8_t g, uint8_t b) {
+  return Color444(r,g,b);
+}
+
 uint16_t RGBmatrixPanel::Color444(uint8_t r, uint8_t g, uint8_t b) {
   uint16_t c;
   
