@@ -1,6 +1,7 @@
 // plasma code based on Windell Oskay's plasma for Peggy 
 // we sped it up a bunch with fixed point HSV->RGB conversion and
 // sine table lookup but havent done fixed point sqrt. its a little sluggish :(
+// LGPL
 
 #include <WProgram.h>
 #include <TimerOne.h>
@@ -102,7 +103,7 @@ float  dist(float a, float b, float c, float d)
   //float s =  sqrt((cfp-afp)*(cfp-afp)+(dfp-bfp)*(dfp-bfp));
   
   return s;
-
+/*
 Serial.print("\t\tfloat dist = "); Serial.println(s);
 
 // 24.8 fixed point for a and b
@@ -117,7 +118,7 @@ Serial.print("\t\tfloat dist = "); Serial.println(s);
   
 Serial.print("\t\tfp dist = "); Serial.println(fps);
   return s;
-
+*/
 }
 
 static int16_t sinetab[512] PROGMEM = {
@@ -212,7 +213,7 @@ void  plasma_morph()
         Serial.print(" G = "); Serial.print(colorRGB.g, DEC);	
         Serial.print(" B = "); Serial.println(colorRGB.b, DEC);	
         */
-	matrix.setPixel(x, y, matrix.Color888(colorRGB.r, colorRGB.g, colorRGB.b)); 
+	matrix.drawPixel(x, y, matrix.Color888(colorRGB.r, colorRGB.g, colorRGB.b)); 
       }
   }
   paletteShift++;
@@ -272,5 +273,4 @@ void loop()
 {
   plasma_morph();
 }
-
 

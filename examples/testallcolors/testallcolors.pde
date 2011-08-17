@@ -1,3 +1,5 @@
+// example to draw all 9-bit colors! public domain
+
 #include "RGBmatrixPanel.h"
 #include <TimerOne.h>
 
@@ -39,7 +41,7 @@ void setup() {
   uint8_t r=0, g=0, b=0;
   for (uint8_t x=0; x < 32; x++) {      
     for (uint8_t y=0; y < 8; y++) {  
-      matrix.setPixel(x, y, matrix.Color333(r, g, b));
+      matrix.drawPixel(x, y, matrix.Color333(r, g, b));
       r++;
       if (r == 8) {
         r = 0; g++;
@@ -52,7 +54,7 @@ void setup() {
 
   for (uint8_t x=0; x < 32; x++) {      
     for (uint8_t y=8; y < 16; y++) {  
-      matrix.setPixel(x, y, matrix.Color333(r, g, b));
+      matrix.drawPixel(x, y, matrix.Color333(r, g, b));
       r++;
       if (r == 8) {
         r = 0; g++;

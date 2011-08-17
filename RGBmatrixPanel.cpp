@@ -1,4 +1,5 @@
 #include "RGBmatrixPanel.h"
+#include "glcdfont.c"
 
 uint8_t RGBmatrixPanel::width() {return WIDTH; }
 
@@ -33,6 +34,10 @@ RGBmatrixPanel::RGBmatrixPanel(uint8_t a, uint8_t b, uint8_t c,
   addrbpin = digitalPinToBitMask(b);
   addrcportreg =  portOutputRegister(digitalPinToPort(c));
   addrcpin = digitalPinToBitMask(c); 
+
+  cursor_x = cursor_y = 0;
+  textsize = 1;
+  textcolor = Color333(7,7,7); // white
 }
 
 
@@ -90,11 +95,13 @@ uint16_t RGBmatrixPanel::Color888(uint8_t r, uint8_t g, uint8_t b) {
 }
 
 
-void  RGBmatrixPanel::setPixel(uint8_t x, uint8_t y, uint16_t c) {
+void  RGBmatrixPanel::drawPixel(uint8_t x, uint8_t y, uint16_t c) {
   uint16_t index;
   uint8_t old;
   uint8_t red, green, blue;
   
+  if  ((x >= WIDTH) || (y >= HEIGHT)) return;
+
   // extract the 12 bits of color
   red = (c >> 8) & 0xF;
   green = (c >> 4) & 0xF;
@@ -143,6 +150,186 @@ void  RGBmatrixPanel::setPixel(uint8_t x, uint8_t y, uint16_t c) {
   // Serial.println( matrixbuff[index], HEX);
 }
 
+
+
+// bresenham's algorithm - thx wikpedia
+void RGBmatrixPanel::drawLine(int8_t x0, int8_t y0, int8_t x1, int8_t y1, 
+		      uint16_t color) {
+  uint16_t steep = abs(y1 - y0) > abs(x1 - x0);
+  if (steep) {
+    swap(x0, y0);
+    swap(x1, y1);
+  }
+
+  if (x0 > x1) {
+    swap(x0, x1);
+    swap(y0, y1);
+  }
+
+  uint16_t dx, dy;
+  dx = x1 - x0;
+  dy = abs(y1 - y0);
+
+  int16_t err = dx / 2;
+  int16_t ystep;
+
+  if (y0 < y1) {
+    ystep = 1;
+  } else {
+    ystep = -1;}
+
+  for (; x0<=x1; x0++) {
+    if (steep) {
+      drawPixel(y0, x0, color);
+    } else {
+      drawPixel(x0, y0, color);
+    }
+    err -= dy;
+    if (err < 0) {
+      y0 += ystep;
+      err += dx;
+    }
+  }
+}
+
+// draw a rectangle
+void RGBmatrixPanel::drawRect(uint8_t x, uint8_t y, uint8_t w, uint8_t h, 
+		      uint16_t color) {
+  drawLine(x, y, x+w-1, y, color);
+  drawLine(x, y+h-1, x+w-1, y+h-1, color);
+
+  drawLine(x, y, x, y+h-1, color);
+  drawLine(x+w-1, y, x+w-1, y+h-1, color);
+}
+
+// fill a rectangle
+void RGBmatrixPanel::fillRect(uint8_t x, uint8_t y, uint8_t w, uint8_t h, 
+		      uint16_t color) {
+  for (uint8_t i=x; i<x+w; i++) {
+    for (uint8_t j=y; j<y+h; j++) {
+      drawPixel(i, j, color);
+    }
+  }
+}
+
+
+
+// draw a circle outline
+void RGBmatrixPanel::drawCircle(uint8_t x0, uint8_t y0, uint8_t r, 
+			uint16_t color) {
+  int16_t f = 1 - r;
+  int16_t ddF_x = 1;
+  int16_t ddF_y = -2 * r;
+  int16_t x = 0;
+  int16_t y = r;
+
+  drawPixel(x0, y0+r, color);
+  drawPixel(x0, y0-r, color);
+  drawPixel(x0+r, y0, color);
+  drawPixel(x0-r, y0, color);
+
+  while (x<y) {
+    if (f >= 0) {
+      y--;
+      ddF_y += 2;
+      f += ddF_y;
+    }
+    x++;
+    ddF_x += 2;
+    f += ddF_x;
+  
+    drawPixel(x0 + x, y0 + y, color);
+    drawPixel(x0 - x, y0 + y, color);
+    drawPixel(x0 + x, y0 - y, color);
+    drawPixel(x0 - x, y0 - y, color);
+    
+    drawPixel(x0 + y, y0 + x, color);
+    drawPixel(x0 - y, y0 + x, color);
+    drawPixel(x0 + y, y0 - x, color);
+    drawPixel(x0 - y, y0 - x, color);
+    
+  }
+}
+
+
+// fill a circle
+void RGBmatrixPanel::fillCircle(uint8_t x0, uint8_t y0, uint8_t r, uint16_t color) {
+  int16_t f = 1 - r;
+  int16_t ddF_x = 1;
+  int16_t ddF_y = -2 * r;
+  int16_t x = 0;
+  int16_t y = r;
+
+  drawLine(x0, y0-r, x0, y0+r+1, color);
+
+  while (x<y) {
+    if (f >= 0) {
+      y--;
+      ddF_y += 2;
+      f += ddF_y;
+    }
+    x++;
+    ddF_x += 2;
+    f += ddF_x;
+  
+    drawLine(x0+x, y0-y, x0+x, y0+y+1, color);
+    drawLine(x0-x, y0-y, x0-x, y0+y+1, color);
+    drawLine(x0+y, y0-x, x0+y, y0+x+1, color);
+    drawLine(x0-y, y0-x, x0-y, y0+x+1, color);
+  }
+}
+
+void RGBmatrixPanel::fill(uint16_t c) {
+  for (uint8_t i=0; i<WIDTH; i++) {
+    for (uint8_t j=0; j<HEIGHT; j++) {
+      drawPixel(i, j, c);
+    }
+  }
+}
+
+void RGBmatrixPanel::setCursor(uint8_t x, uint8_t y) {
+  cursor_x = x; 
+  cursor_y = y;
+}
+
+void RGBmatrixPanel::setTextSize(uint8_t s) {
+  textsize = s;
+}
+
+void RGBmatrixPanel::setTextColor(uint16_t c) {
+  textcolor = c;
+}
+
+void RGBmatrixPanel::write(uint8_t c) {
+  if (c == '\n') {
+    cursor_y += textsize*8;
+    cursor_x = 0;
+  } else if (c == '\r') {
+    // skip em
+  } else {
+    drawChar(cursor_x, cursor_y, c, textcolor, textsize);
+    cursor_x += textsize*6;
+  }
+}
+
+
+// draw a character
+void RGBmatrixPanel::drawChar(uint8_t x, uint8_t y, char c, 
+			      uint16_t color, uint8_t size) {
+  for (uint8_t i =0; i<5; i++ ) {
+    uint8_t line = pgm_read_byte(font+(c*5)+i);
+    for (uint8_t j = 0; j<8; j++) {
+      if (line & 0x1) {
+	if (size == 1) // default size
+	  drawPixel(x+i, y+j, color);
+	else {  // big size
+	  fillRect(x+i*size, y+j*size, size, size, color);
+	} 
+      }
+      line >>= 1;
+    }
+  }
+}
 
 void  RGBmatrixPanel::updateDisplay(void) {
   writeSection(scansection, matrixbuff + (3*32*scansection));  
