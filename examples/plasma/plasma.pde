@@ -11,8 +11,8 @@
 #define A A0
 #define B A1
 #define C A2
-#define OE A3
-#define LAT 9
+#define LAT A3
+#define OE 9
 
 
 RGBmatrixPanel matrix(A, B, C, LAT, OE);
