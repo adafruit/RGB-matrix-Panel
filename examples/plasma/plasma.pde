@@ -3,10 +3,8 @@
 // sine table lookup but havent done fixed point sqrt. its a little sluggish :(
 // LGPL
 
-#include <WProgram.h>
 #include <TimerOne.h>
 #include "RGBmatrixPanel.h"
-#include <avr/pgmspace.h> 
 
 #define A A0
 #define B A1

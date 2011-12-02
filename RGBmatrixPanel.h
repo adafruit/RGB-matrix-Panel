@@ -1,6 +1,10 @@
 // Controller for RGB matrix panels that use 1:8 refresh mode
 
-#include <WProgram.h>
+#if (ARDUINO >= 100)
+ #include <Arduino.h>
+#else
+ #include <WProgram.h>
+#endif
 #include <util/delay.h>
 #include "pins_arduino.h"
 #include "wiring_private.h"
@@ -45,7 +49,11 @@ class RGBmatrixPanel  : public Print {
   void setCursor(uint8_t x, uint8_t y);
   void setTextSize(uint8_t s);
   void setTextColor(uint16_t c);
+#if (ARDUINO >= 100)
+  size_t write(uint8_t c);
+#else
   void write(uint8_t c);
+#endif
   void drawChar(uint8_t x, uint8_t y, char c, uint16_t color, uint8_t size);
 
   void updateDisplay();

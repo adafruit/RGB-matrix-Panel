@@ -300,7 +300,11 @@ void RGBmatrixPanel::setTextColor(uint16_t c) {
   textcolor = c;
 }
 
+#if (ARDUINO >= 100)
+size_t RGBmatrixPanel::write(uint8_t c) {
+#else
 void RGBmatrixPanel::write(uint8_t c) {
+#endif
   if (c == '\n') {
     cursor_y += textsize*8;
     cursor_x = 0;
