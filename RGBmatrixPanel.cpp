@@ -55,7 +55,7 @@ void RGBmatrixPanel::begin(void) {
   pinMode(_oe, OUTPUT);
   digitalWrite(_oe, HIGH); 
  
-  RGBMATRIX_DATADDR = 0xFF << RGBMATRIX_DATASHIFT;
+  RGBMATRIX_DATADDR = (0xFF << RGBMATRIX_DATASHIFT) & 0xff;
   RGBMATRIX_DATAPORT = 0x0;
   RGBMATRIX_CLOCKDDR |= _BV(RGBMATRIX_CLOCKPIN);
 }
@@ -300,7 +300,7 @@ void RGBmatrixPanel::setTextColor(uint16_t c) {
   textcolor = c;
 }
 
-#if (ARDUINO >= 100)
+#if ARDUINO >= 100
 size_t RGBmatrixPanel::write(uint8_t c) {
 #else
 void RGBmatrixPanel::write(uint8_t c) {
@@ -314,6 +314,9 @@ void RGBmatrixPanel::write(uint8_t c) {
     drawChar(cursor_x, cursor_y, c, textcolor, textsize);
     cursor_x += textsize*6;
   }
+#if ARDUINO >= 100
+  return 1;
+#endif
 }
 
 
