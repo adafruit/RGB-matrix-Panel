@@ -1,67 +1,45 @@
-// demo for all the abilities of the RGBmatrixPanel library. public domain!
+// testshapes demo for RGBmatrixPanel library.
+// Demonstrates the drawing abilities of the RGBmatrixPanel library.
+// For 32x32 RGB LED matrix.
 
 #include "RGBmatrixPanel.h"
-#include <TimerOne.h>
 
-#define A     A0
-#define B     A1
-#define C     A2
-#define LAT   A3
-#define OE    9
-
-// The clock pin must be digital 8
-// The data pins must connect to digital 2-7
-
-RGBmatrixPanel matrix(A, B, C, LAT, OE);
-
-// wrapper for the redrawing code, this gets called by the interrupt
-void refresh() { 
-  matrix.updateDisplay();
-}
-
-// m ranges from 0 to 100%
-void setCPUmaxpercent(uint8_t m) {
-  float time = 100;        // 100 %
-
-  time *=  150;           // each redraw takes 150 microseconds
-  time /= m;              // how long between interrupts
-  Timer1.initialize(time);  // microseconds per tick
-  Timer1.attachInterrupt(refresh);
-}
+#define A   A0
+#define B   A1
+#define C   A2
+#define D   A4 // Skip A3 for compatibility with 16x32 wiring
+#define CLK 8  // MUST be on PORTB!
+#define LAT A3
+#define OE  9
+RGBmatrixPanel matrix(A, B, C, D, CLK, LAT, OE, false);
 
 void setup() {
-  Serial.begin(9600);
 
   matrix.begin();
-
-  // initialize the timer that refreshes the delay using our helper
-  // 50% seems to be the minimum for 9 bit color, higher will make the display
-  // look better
-  setCPUmaxpercent(75);
   
   // draw a pixel in solid white
   matrix.drawPixel(0, 0, matrix.Color333(7, 7, 7)); 
   delay(500);
 
   // fix the screen with green
-  matrix.fillRect(0, 0, 32, 16, matrix.Color333(0, 7, 0));
+  matrix.fillRect(0, 0, 32, 32, matrix.Color333(0, 7, 0));
   delay(500);
 
   // draw a box in yellow
-  matrix.drawRect(0, 0, 32, 16, matrix.Color333(7, 7, 0));
+  matrix.drawRect(0, 0, 32, 32, matrix.Color333(7, 7, 0));
   delay(500);
   
   // draw an 'X' in red
-  matrix.drawLine(0, 0, 31, 15, matrix.Color333(7, 0, 0));
-  matrix.drawLine(31, 0, 0, 15, matrix.Color333(7, 0, 0));
+  matrix.drawLine(0, 0, 31, 31, matrix.Color333(7, 0, 0));
+  matrix.drawLine(31, 0, 0, 31, matrix.Color333(7, 0, 0));
   delay(500);
   
   // draw a blue circle
-  matrix.drawCircle(7, 7, 7, matrix.Color333(0, 0, 7));
+  matrix.drawCircle(10, 10, 10, matrix.Color333(0, 0, 7));
   delay(500);
   
   // fill a violet circle
-  matrix.fillCircle(23, 7, 7, matrix.Color333(7, 0, 7));
+  matrix.fillCircle(21, 21, 10, matrix.Color333(7, 0, 7));
   delay(500);
   
   // fill the screen with 'black'
@@ -70,6 +48,10 @@ void setup() {
   // draw some text!
   matrix.setCursor(1, 0);   // start at top left, with one pixel of spacing
   matrix.setTextSize(1);    // size 1 == 8 pixels high
+
+  matrix.setTextColor(matrix.Color333(7,7,7));
+  matrix.println(" Ada");
+  matrix.println("fruit");
   
   // print each letter with a rainbow color
   matrix.setTextColor(matrix.Color333(7,0,0));
@@ -81,9 +63,8 @@ void setup() {
   matrix.setTextColor(matrix.Color333(4,7,0)); 
   matrix.print('3');
   matrix.setTextColor(matrix.Color333(0,7,0));  
-  matrix.print('2');
+  matrix.println('2');
   
-  matrix.setCursor(1, 9);   // next line
   matrix.setTextColor(matrix.Color333(0,7,7)); 
   matrix.print('*');
   matrix.setTextColor(matrix.Color333(0,4,7)); 
@@ -101,4 +82,3 @@ void setup() {
 void loop() {
   // do nothing
 }
-
