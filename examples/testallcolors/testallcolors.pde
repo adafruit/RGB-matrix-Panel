@@ -3,11 +3,11 @@
 #include "RGBmatrixPanel.h"
 #include <TimerOne.h>
 
-#define A     A0
-#define B     A1
-#define C     A2
-#define LAT   A3
-#define OE    9
+#define A    A0
+#define B    A1
+#define C    A2
+#define LAT  A3
+#define OE   9
 
 // The clock pin must be digital 8
 // The data pins must connect to digital 2-7
