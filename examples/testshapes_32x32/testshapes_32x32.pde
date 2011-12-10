@@ -4,13 +4,13 @@
 
 #include "RGBmatrixPanel.h"
 
-#define A   A0
-#define B   A1
-#define C   A2
-#define D   A4 // Skip A3 for compatibility with 16x32 wiring
+#define A   A3
+#define B   A2
+#define C   A1
+#define D   A0
 #define CLK 8  // MUST be on PORTB!
-#define LAT A3
-#define OE  9
+#define LAT 9
+#define OE  10
 RGBmatrixPanel matrix(A, B, C, D, CLK, LAT, OE, false);
 
 void setup() {
@@ -55,9 +55,9 @@ void setup() {
   
   // print each letter with a rainbow color
   matrix.setTextColor(matrix.Color333(7,0,0));
-  matrix.print('1');
+  matrix.print('3');
   matrix.setTextColor(matrix.Color333(7,4,0)); 
-  matrix.print('6');
+  matrix.print('2');
   matrix.setTextColor(matrix.Color333(7,7,0));
   matrix.print('x');
   matrix.setTextColor(matrix.Color333(4,7,0)); 
