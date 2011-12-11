@@ -19,9 +19,8 @@ void setup() {
   int     i, len;
   uint8_t *ptr = matrix.backBuffer(); // Get address of matrix data
 
-  // Copy each byte from PROGMEM to matrix buffer:
-  len = sizeof(img);
-  for(i=0; i<len; i++) ptr[i] = pgm_read_byte(&img[i]);
+  // Copy image from PROGMEM to matrix buffer:
+  memcpy_P(ptr, img, sizeof(img));
 
   // Start up matrix AFTER data is copied.  The RGBmatrixPanel
   // interrupt code ties up about 40% of the CPU time, so starting
