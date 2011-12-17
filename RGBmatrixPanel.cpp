@@ -39,15 +39,19 @@ performance and/or lower CPU utilization:
  // Arduino Mega hasn't actually been tested -- use at your own peril!
  // Because digital pins 2-7 don't map to a contiguous port register,
  // the Mega will require connecting the matrix data lines to different
- // pins.  Ports A, C, and L all offer the requisite contiguous 6 bits;
- // I chose PORTL (pins 42-47) because the peripheral functions are not
- // unique (hardware PWM is available on other pins, but the external
- // memory interface on ports A & C is not).  Clock may be any pin on
- // PORTH -- this was chosen because the demos won't require different
- // code or wiring for the remaining signal lines.
- #define DATAPORT PORTL
- #define DATADIR  DDRL
- #define SCLKPORT PORTH
+ // pins.  Ports A, C, and L all offer the requisite contiguous 6 bits.
+ // I wanted to use PORTL in order to keep the external memory interface
+ // free, but accessing the upper PORT registers in assembly seems to
+ // require some additional flaming hoops and doesn't work with the
+ // inline code here.  PORTA is used instead (Mega pins 22-29, though
+ // only 24-29 are actually connected to the LED matrix).  Clock may be
+ // any pin on PORTB -- on the Mega, this CAN'T be pins 8 or 9 (these
+ // are on PORTH), thus the wiring will need to be slightly different
+ // than the tutorial's explanation on the Uno, etc.  Pins 10-13 are all
+ // fair game for the clock, as are pins 50-53.
+ #define DATAPORT PORTA
+ #define DATADIR  DDRA
+ #define SCLKPORT PORTB
 #elif defined(__AVR_ATmega32U4__)
  // Arduino Leonardo is still a work in progress -- DO NOT USE!!!
  // Unlike the Uno, digital pins 2-7 do NOT map to a contiguous port
