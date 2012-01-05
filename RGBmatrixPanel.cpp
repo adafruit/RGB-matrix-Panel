@@ -458,8 +458,8 @@ size_t RGBmatrixPanel::write(uint8_t c) {
 void RGBmatrixPanel::write(uint8_t c) {
 #endif
   if (c == '\n') {
-    cursor_y += textsize*8;
-    cursor_x = 0;
+    cursor_y += textsize * 8;
+    cursor_x  = 0;
   } else if (c == '\r') {
     // skip em
   } else {
@@ -474,9 +474,16 @@ void RGBmatrixPanel::write(uint8_t c) {
 // draw a character
 void RGBmatrixPanel::drawChar(
   int x, int y, char c, uint16_t color, uint8_t size) {
-  for (uint8_t i =0; i<5; i++ ) {
+
+  if((x >= WIDTH)             || // Clip right
+     (y >= (nRows * 2))       || // Clip bottom
+     ((x + 5 * size - 1) < 0) || // Clip left
+     ((y + 8 * size - 1) < 0))   // Clip top
+    return;
+
+  for (uint8_t i=0; i<5; i++ ) {
     uint8_t line = pgm_read_byte(font+(c*5)+i);
-    for (uint8_t j = 0; j<8; j++) {
+    for (uint8_t j=0; j<8; j++) {
       if (line & 0x1) {
 	if (size == 1) // default size
 	  drawPixel(x+i, y+j, color);
