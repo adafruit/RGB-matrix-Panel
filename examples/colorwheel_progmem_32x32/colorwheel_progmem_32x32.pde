@@ -3,7 +3,8 @@
 // Uses precomputed image data stored in PROGMEM rather than
 // calculating each pixel.  Nearly instantaneous!  Woo!
 
-#include "RGBmatrixPanel.h"
+#include <Adafruit_GFX.h>   // Core graphics library
+#include <RGBmatrixPanel.h> // Hardware-specific library
 #include "image.h"
 
 #define A   A3

@@ -1,7 +1,8 @@
 // plasma demo for RGBmatrixPanel library.
 // Demonstrates unbuffered animation on 32x32 RGB LED matrix.
 
-#include "RGBmatrixPanel.h"
+#include <Adafruit_GFX.h>   // Core graphics library
+#include <RGBmatrixPanel.h> // Hardware-specific library
 #include <avr/pgmspace.h> 
 
 #define A   A3

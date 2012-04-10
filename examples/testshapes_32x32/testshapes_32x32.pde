@@ -2,7 +2,8 @@
 // Demonstrates the drawing abilities of the RGBmatrixPanel library.
 // For 32x32 RGB LED matrix.
 
-#include "RGBmatrixPanel.h"
+#include <Adafruit_GFX.h>   // Core graphics library
+#include <RGBmatrixPanel.h> // Hardware-specific library
 
 #define A   A3
 #define B   A2
@@ -43,11 +44,12 @@ void setup() {
   delay(500);
   
   // fill the screen with 'black'
-  matrix.fill(matrix.Color333(0, 0, 0));
+  matrix.fillScreen(matrix.Color333(0, 0, 0));
   
   // draw some text!
-  matrix.setCursor(1, 0);   // start at top left, with one pixel of spacing
-  matrix.setTextSize(1);    // size 1 == 8 pixels high
+  matrix.setCursor(1, 0);    // start at top left, with one pixel of spacing
+  matrix.setTextSize(1);     // size 1 == 8 pixels high
+  matrix.setTextWrap(false); // Don't wrap at end of line - will do ourselves
 
   matrix.setTextColor(matrix.Color333(7,7,7));
   matrix.println(" Ada");

@@ -2,14 +2,15 @@
 // Demonstrates the drawing abilities of the RGBmatrixPanel library.
 // For 16x32 RGB LED matrix.
 
-#include "RGBmatrixPanel.h"
+#include <Adafruit_GFX.h>   // Core graphics library
+#include <RGBmatrixPanel.h> // Hardware-specific library
 
-#define A   A0
-#define B   A1
-#define C   A2
 #define CLK 8  // MUST be on PORTB!
 #define LAT A3
 #define OE  9
+#define A   A0
+#define B   A1
+#define C   A2
 RGBmatrixPanel matrix(A, B, C, CLK, LAT, OE, false);
 
 void setup() {
@@ -42,7 +43,7 @@ void setup() {
   delay(500);
   
   // fill the screen with 'black'
-  matrix.fill(matrix.Color333(0, 0, 0));
+  matrix.fillScreen(matrix.Color333(0, 0, 0));
   
   // draw some text!
   matrix.setCursor(1, 0);   // start at top left, with one pixel of spacing

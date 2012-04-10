@@ -1,7 +1,8 @@
 // colorwheel demo for RGBmatrixPanel library.
 // Renders a nice circle of hues on a 32x32 RGB LED matrix.
 
-#include "RGBmatrixPanel.h"
+#include <Adafruit_GFX.h>   // Core graphics library
+#include <RGBmatrixPanel.h> // Hardware-specific library
 
 #define A   A3
 #define B   A2

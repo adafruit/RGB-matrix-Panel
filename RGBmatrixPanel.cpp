@@ -26,7 +26,6 @@ performance and/or lower CPU utilization:
 */
 
 #include "RGBmatrixPanel.h"
-#include "glcdfont.h"
 #include "gamma.h"
 
 // A full PORT register is required for the data lines, though only the
@@ -68,9 +67,6 @@ performance and/or lower CPU utilization:
  #define SCLKPORT PORTB
 #endif
 
-#define WIDTH 32 // # RGB LEDs across
-#define swap(a, b) { int t = a; a = b; b = t; }
-
 // The fact that the display driver interrupt stuff is tied to the
 // singular Timer1 doesn't really take well to object orientation with
 // multiple RGBmatrixPanel instances.  The solution at present is to
@@ -81,15 +77,12 @@ performance and/or lower CPU utilization:
 // are even an actual need.
 static RGBmatrixPanel *activePanel = NULL;
 
-uint8_t RGBmatrixPanel::width() { return WIDTH; }
-
-uint8_t RGBmatrixPanel::height() { return nRows * 2; }
-
 // Code common to both the 16x32 and 32x32 constructors:
 void RGBmatrixPanel::init(uint8_t rows, uint8_t a, uint8_t b, uint8_t c,
   uint8_t sclk, uint8_t latch, uint8_t oe, boolean dbuf) {
 
   nRows = rows; // Number of multiplexed rows; actual height is 2X this
+  constructor(32, nRows * 2);
 
   // Allocate and initialize matrix buffer:
   int buffsize  = 32 * nRows * 3, // x3 = 3 bytes holds 4 planes "packed"
@@ -120,10 +113,6 @@ void RGBmatrixPanel::init(uint8_t rows, uint8_t a, uint8_t b, uint8_t c,
   addrbpin  = digitalPinToBitMask(b);
   addrcport = portOutputRegister(digitalPinToPort(c));
   addrcpin  = digitalPinToBitMask(c); 
-
-  cursor_x  = cursor_y = 0;
-  textsize  = 1;
-  textcolor = 0xFFF; // white
   nPlanes   = 4;     // Other code is fixed at 4 planes; don't change this
   plane     = nPlanes - 1;
   row       = nRows   - 1;
@@ -182,32 +171,48 @@ void RGBmatrixPanel::begin(void) {
   sei();                // Enable global interrupts
 }
 
-// 4-bit color components are now the native type, but this method is
-// here for backward compatibility.  'Promotes' 3-bit colors to their
-// 4-bit equivalents.
+// Original RGBmatrixPanel library used 3/3/3 color.  Later version used
+// 4/4/4.  Then Adafruit_GFX (core library used across all Adafruit
+// display devices now) standardized on 5/6/5.  The matrix still operates
+// internally on 4/4/4 color, but all the graphics functions are written
+// to expect 5/6/5...the matrix lib will truncate the color components as
+// needed when drawing.  These next functions are mostly here for the
+// benefit of older code using one of the original color formats.
+
+// Promote 3/3/3 RGB to Adafruit_GFX 5/6/5
 uint16_t RGBmatrixPanel::Color333(uint8_t r, uint8_t g, uint8_t b) {
-  return ((r & 0x7) << 9) | ((r & 0x4) << 6) |
-         ((g & 0x7) << 5) | ((g & 0x4) << 2) |
-         ((b & 0x7) << 1) | ((b & 0x4) >> 2);
+  // RRRrrGGGgggBBBbb
+  return ((r & 0x7) << 13) | ((r & 0x6) << 10) |
+         ((g & 0x7) <<  8) | ((g & 0x7) <<  5) |
+         ((b & 0x7) <<  2) | ((b & 0x6) >>  1);
 }
 
+// Promote 4/4/4 RGB to Adafruit_GFX 5/6/5
 uint16_t RGBmatrixPanel::Color444(uint8_t r, uint8_t g, uint8_t b) {
-  return ((r & 0xF) << 8) | ((g & 0xF) << 4) | (b & 0xF);
+  // RRRRrGGGGggBBBBb
+  return ((r & 0xF) << 12) | ((r & 0x8) << 8) |
+         ((g & 0xF) <<  7) | ((g & 0xC) << 3) |
+         ((b & 0xF) <<  1) | ((b & 0x8) >> 3);
 }
 
+// Demote 8/8/8 to Adafruit_GFX 5/6/5
 // If no gamma flag passed, assume linear color
 uint16_t RGBmatrixPanel::Color888(uint8_t r, uint8_t g, uint8_t b) {
-  return ((r & 0xF0) << 4) | (g & 0xF0) | (b >> 4);
+  return ((r & 0xF8) << 11) | ((g & 0xFC) << 5) | (b >> 3);
 }
 
+// 8/8/8 -> gamma -> 5/6/5
 uint16_t RGBmatrixPanel::Color888(
   uint8_t r, uint8_t g, uint8_t b, boolean gflag) {
-
-  return gflag ?
-    (pgm_read_byte(&gamma[r]) << 8) |          // Gamma-corrected color
-    (pgm_read_byte(&gamma[g]) << 4) |
-     pgm_read_byte(&gamma[b]) :
-    ((r & 0xF0) << 4) | (g & 0xF0) | (b >> 4); // Linear color
+  if(gflag) { // Gamma-corrected color?
+    r = pgm_read_byte(&gamma[r]); // Gamma correction table maps
+    g = pgm_read_byte(&gamma[g]); // 8-bit input to 4-bit output
+    b = pgm_read_byte(&gamma[b]);
+    return (r << 12) | ((r & 0x8) << 8) | // 4/4/4 -> 5/6/5
+           (g <<  7) | ((g & 0xC) << 3) |
+           (b <<  1) | ( b        >> 3);
+  } // else linear (uncorrected) color
+  return ((r & 0xF8) << 11) | ((g & 0xFC) << 5) | (b >> 3);
 }
 
 uint16_t RGBmatrixPanel::ColorHSV(
@@ -240,24 +245,45 @@ uint16_t RGBmatrixPanel::ColorHSV(
   // Value (brightness) & 16-bit color reduction: similar to above, add 1
   // to allow shifts, and upgrade to int makes other conversions implicit.
   v1 = val + 1;
-  return gflag ?
-    (pgm_read_byte(&gamma[(r * v1) >> 8]) << 8) | // Gamma corrected
-    (pgm_read_byte(&gamma[(g * v1) >> 8]) << 4) |
-     pgm_read_byte(&gamma[(b * v1) >> 8]) :
-    (((r * v1) & 0xf000) >> 4) |                  // Linear color
-    (((g * v1) & 0xf000) >> 8) |
-    ( (b * v1)           >> 12);
+  if(gflag) { // Gamma-corrected color?
+    r = pgm_read_byte(&gamma[(r * v1) >> 8]); // Gamma correction table maps
+    g = pgm_read_byte(&gamma[(g * v1) >> 8]); // 8-bit input to 4-bit output
+    b = pgm_read_byte(&gamma[(b * v1) >> 8]);
+  } else { // linear (uncorrected) color
+    r = (r * v1) >> 12; // 4-bit results
+    g = (g * v1) >> 12;
+    b = (b * v1) >> 12;
+  }
+  return (r << 12) | ((r & 0x8) << 8) | // 4/4/4 -> 5/6/5
+         (g <<  7) | ((g & 0xC) << 3) |
+         (b <<  1) | ( b        >> 3);
 }
 
-void RGBmatrixPanel::drawPixel(int x, int y, uint16_t c) {
+void RGBmatrixPanel::drawPixel(int16_t x, int16_t y, uint16_t c) {
   uint8_t r, g, b, bit, limit, *ptr;
-  
-  if((x < 0) || (x >= WIDTH) ||
-     (y < 0) || (y >= (nRows * 2))) return;
 
-  r = (c >> 8) & 0xF; // Decompose color into R,G,B
-  g = (c >> 4) & 0xF;
-  b =  c       & 0xF;
+  if((x < 0) || (x >= _width) || (y < 0) || (y >= _height)) return;
+
+  switch(rotation) {
+   case 1:
+    swap(x, y);
+    x = WIDTH  - 1 - x;
+    break;
+   case 2:
+    x = WIDTH  - 1 - x;
+    y = HEIGHT - 1 - y;
+    break;
+   case 3:
+    swap(x, y);
+    y = HEIGHT - 1 - y;
+    break;
+  }
+
+  // Adafruit_GFX uses 16-bit color in 5/6/5 format, while matrix needs
+  // 4/4/4.  Pluck out relevant bits while separating into R,G,B:
+  r =  c >> 12;        // RRRRrggggggbbbbb
+  g = (c >>  7) & 0xF; // rrrrrGGGGggbbbbb
+  b = (c >>  1) & 0xF; // rrrrrggggggBBBBb
 
   // Loop counter stuff
   bit   = 2;
@@ -303,196 +329,15 @@ void RGBmatrixPanel::drawPixel(int x, int y, uint16_t c) {
   }
 }
 
-// bresenham's algorithm - thx wikpedia
-void RGBmatrixPanel::drawLine(
-  int x0, int y0, int x1, int y1, uint16_t color) {
-
-  uint16_t steep = abs(y1 - y0) > abs(x1 - x0);
-  if (steep) {
-    swap(x0, y0);
-    swap(x1, y1);
-  }
-
-  if (x0 > x1) {
-    swap(x0, x1);
-    swap(y0, y1);
-  }
-
-  uint16_t dx, dy;
-  dx = x1 - x0;
-  dy = abs(y1 - y0);
-
-  int16_t err = dx / 2;
-  int16_t ystep;
-
-  if (y0 < y1) {
-    ystep = 1;
+void RGBmatrixPanel::fillScreen(uint16_t c) {
+  if((c == 0x0000) || (c == 0xffff)) {
+    // For black or white, all bits in frame buffer will be identically
+    // set or unset (regardless of weird bit packing), so it's OK to just
+    // quickly memset the whole thing:
+    memset(matrixbuff[backindex], c, 32 * nRows * 3);
   } else {
-    ystep = -1;}
-
-  for (; x0<=x1; x0++) {
-    if (steep) {
-      drawPixel(y0, x0, color);
-    } else {
-      drawPixel(x0, y0, color);
-    }
-    err -= dy;
-    if (err < 0) {
-      y0 += ystep;
-      err += dx;
-    }
-  }
-}
-
-// draw a rectangle
-void RGBmatrixPanel::drawRect(
-  int x, int y, uint8_t w, uint8_t h, uint16_t color) {
-  drawLine(x, y, x+w-1, y, color);
-  drawLine(x, y+h-1, x+w-1, y+h-1, color);
-
-  drawLine(x, y, x, y+h-1, color);
-  drawLine(x+w-1, y, x+w-1, y+h-1, color);
-}
-
-// fill a rectangle
-void RGBmatrixPanel::fillRect(
-  int x, int y, uint8_t w, uint8_t h, uint16_t color) {
-  for (int i=x; i<x+w; i++) {
-    for (int j=y; j<y+h; j++) {
-      drawPixel(i, j, color);
-    }
-  }
-}
-
-// draw a circle outline
-void RGBmatrixPanel::drawCircle(
-  int x0, int y0, uint8_t r, uint16_t color) {
-
-  int16_t f = 1 - r;
-  int16_t ddF_x = 1;
-  int16_t ddF_y = -2 * r;
-  int16_t x = 0;
-  int16_t y = r;
-
-  drawPixel(x0, y0+r, color);
-  drawPixel(x0, y0-r, color);
-  drawPixel(x0+r, y0, color);
-  drawPixel(x0-r, y0, color);
-
-  while (x<y) {
-    if (f >= 0) {
-      y--;
-      ddF_y += 2;
-      f += ddF_y;
-    }
-    x++;
-    ddF_x += 2;
-    f += ddF_x;
-  
-    drawPixel(x0 + x, y0 + y, color);
-    drawPixel(x0 - x, y0 + y, color);
-    drawPixel(x0 + x, y0 - y, color);
-    drawPixel(x0 - x, y0 - y, color);
-    
-    drawPixel(x0 + y, y0 + x, color);
-    drawPixel(x0 - y, y0 + x, color);
-    drawPixel(x0 + y, y0 - x, color);
-    drawPixel(x0 - y, y0 - x, color);
-    
-  }
-}
-
-// fill a circle
-void RGBmatrixPanel::fillCircle(
-  int x0, int y0, uint8_t r, uint16_t color) {
-
-  int16_t f = 1 - r;
-  int16_t ddF_x = 1;
-  int16_t ddF_y = -2 * r;
-  int16_t x = 0;
-  int16_t y = r;
-
-  drawLine(x0, y0-r, x0, y0+r+1, color);
-
-  while (x<y) {
-    if (f >= 0) {
-      y--;
-      ddF_y += 2;
-      f += ddF_y;
-    }
-    x++;
-    ddF_x += 2;
-    f += ddF_x;
-  
-    drawLine(x0+x, y0-y, x0+x, y0+y+1, color);
-    drawLine(x0-x, y0-y, x0-x, y0+y+1, color);
-    drawLine(x0+y, y0-x, x0+y, y0+x+1, color);
-    drawLine(x0-y, y0-x, x0-y, y0+x+1, color);
-  }
-}
-
-void RGBmatrixPanel::fill(uint16_t c) {
-  for (uint8_t i=0; i<WIDTH; i++) {
-    for (uint8_t j=0; j<(nRows * 2); j++) {
-      drawPixel(i, j, c);
-    }
-  }
-}
-
-void RGBmatrixPanel::setCursor(int x, int y) {
-  cursor_x = x; 
-  cursor_y = y;
-}
-
-void RGBmatrixPanel::setTextSize(uint8_t s) {
-  textsize = s;
-}
-
-void RGBmatrixPanel::setTextColor(uint16_t c) {
-  textcolor = c;
-}
-
-#if (ARDUINO >= 100)
-size_t RGBmatrixPanel::write(uint8_t c) {
-#else
-void RGBmatrixPanel::write(uint8_t c) {
-#endif
-  if (c == '\n') {
-    cursor_y += textsize * 8;
-    cursor_x  = 0;
-  } else if (c == '\r') {
-    // skip em
-  } else {
-    drawChar(cursor_x, cursor_y, c, textcolor, textsize);
-    cursor_x += textsize*6;
-  }
-#if (ARDUINO >= 100)
-  return 1;
-#endif
-}
-
-// draw a character
-void RGBmatrixPanel::drawChar(
-  int x, int y, char c, uint16_t color, uint8_t size) {
-
-  if((x >= WIDTH)             || // Clip right
-     (y >= (nRows * 2))       || // Clip bottom
-     ((x + 5 * size - 1) < 0) || // Clip left
-     ((y + 8 * size - 1) < 0))   // Clip top
-    return;
-
-  for (uint8_t i=0; i<5; i++ ) {
-    uint8_t line = pgm_read_byte(font+(c*5)+i);
-    for (uint8_t j=0; j<8; j++) {
-      if (line & 0x1) {
-	if (size == 1) // default size
-	  drawPixel(x+i, y+j, color);
-	else {  // big size
-	  fillRect(x+i*size, y+j*size, size, size, color);
-	} 
-      }
-      line >>= 1;
-    }
+    // Otherwise, need to handle it the long way:
+    Adafruit_GFX::fillScreen(c);
   }
 }
 
@@ -599,7 +444,8 @@ void RGBmatrixPanel::updateDisplay(void) {
   uint8_t  i, tick, tock, *ptr;
   uint16_t t, duration;
 
-  *oeport |= oepin; // Disable LED output during row/plane switchover
+  *oeport  |= oepin;  // Disable LED output during row/plane switchover
+  *latport |= latpin; // Latch data loaded during *prior* interrupt
 
   // Calculate time to next interrupt BEFORE incrementing plane #.
   // This is because duration is the display time for the data loaded
@@ -647,12 +493,10 @@ void RGBmatrixPanel::updateDisplay(void) {
   // A local register copy can speed some things up:
   ptr = (uint8_t *)buffptr;
 
-  // Latch and show data loaded during *prior* interrupt
-  *latport |=  latpin;  // Latch up
-  *latport &= ~latpin;  // Latch down
   ICR1      = duration; // Set interval for next interrupt
   TCNT1     = 0;        // Restart interrupt timer
   *oeport  &= ~oepin;   // Re-enable output
+  *latport &= ~latpin;  // Latch down
 
   // Record current state of SCLKPORT register, as well as a second
   // copy with the clock bit set.  This makes the innnermost data-
@@ -712,3 +556,4 @@ void RGBmatrixPanel::updateDisplay(void) {
     } 
   }
 }
+

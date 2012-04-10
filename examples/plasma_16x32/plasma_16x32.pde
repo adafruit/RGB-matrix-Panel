@@ -1,15 +1,16 @@
 // plasma demo for RGBmatrixPanel library.
 // Demonstrates double-buffered animation on 16x32 RGB LED matrix.
 
-#include "RGBmatrixPanel.h"
-#include <avr/pgmspace.h> 
+#include <avr/pgmspace.h>
+#include <Adafruit_GFX.h>   // Core graphics library
+#include <RGBmatrixPanel.h> // Hardware-specific library
 
-#define A   A0
-#define B   A1
-#define C   A2
 #define CLK 8  // MUST be on PORTB!
 #define LAT A3
 #define OE  9
+#define A   A0
+#define B   A1
+#define C   A2
 // Last parameter = 'true' enables double-buffering, for flicker-free,
 // buttery smooth animation.  Note that NOTHING WILL SHOW ON THE DISPLAY
 // until the first call to swapBuffers().  This is normal.
@@ -54,10 +55,10 @@ void setup() {
   matrix.begin();
 }
 
-const float radius1  = 16.3, radius2  = 23.0, radius3  = 40.8, radius4  = 44.2,
-            centerx1 = 16.1, centerx2 = 11.6, centerx3 = 23.4, centerx4 =  4.1, 
-            centery1 =  8.7, centery2 =  6.5, centery3 = 14.0, centery4 = -2.9;
-float       angle1   =  0.0, angle2   =  0.0, angle3   =  0.0, angle4   =  0.0;
+const float radius1  = 65.2, radius2  = 92.0, radius3  = 163.2, radius4  = 176.8,
+            centerx1 = 64.4, centerx2 = 46.4, centerx3 =  93.6, centerx4 =  16.4, 
+            centery1 = 34.8, centery2 = 26.0, centery3 =  56.0, centery4 = -11.6;
+float       angle1   =  0.0, angle2   =  0.0, angle3   =   0.0, angle4   =   0.0;
 long        hueShift =  0;
 
 void loop() {
@@ -78,10 +79,10 @@ void loop() {
     x1 = sx1; x2 = sx2; x3 = sx3; x4 = sx4;
     for(x=0; x<matrix.width(); x++) {
       value = hueShift
-        + (int8_t)pgm_read_byte(sinetab + (uint8_t)((x1 * x1 + y1 * y1) >> 2))
-        + (int8_t)pgm_read_byte(sinetab + (uint8_t)((x2 * x2 + y2 * y2) >> 2))
-        + (int8_t)pgm_read_byte(sinetab + (uint8_t)((x3 * x3 + y3 * y3) >> 3))
-        + (int8_t)pgm_read_byte(sinetab + (uint8_t)((x4 * x4 + y4 * y4) >> 3));
+        + (int8_t)pgm_read_byte(sinetab + (uint8_t)((x1 * x1 + y1 * y1) >> 4))
+        + (int8_t)pgm_read_byte(sinetab + (uint8_t)((x2 * x2 + y2 * y2) >> 4))
+        + (int8_t)pgm_read_byte(sinetab + (uint8_t)((x3 * x3 + y3 * y3) >> 5))
+        + (int8_t)pgm_read_byte(sinetab + (uint8_t)((x4 * x4 + y4 * y4) >> 5));
       matrix.drawPixel(x, y, matrix.ColorHSV(value * 3, 255, 255, true));
       x1--; x2--; x3--; x4--;
     }
