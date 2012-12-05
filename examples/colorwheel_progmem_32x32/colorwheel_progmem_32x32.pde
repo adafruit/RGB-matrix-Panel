@@ -7,13 +7,23 @@
 #include <RGBmatrixPanel.h> // Hardware-specific library
 #include "image.h"
 
-#define A   A3
-#define B   A2
-#define C   A1
-#define D   A0
+// If your 32x32 matrix has the SINGLE HEADER input,
+// use this pinout:
 #define CLK 8  // MUST be on PORTB!
-#define LAT 9
-#define OE  10
+#define OE  9
+#define LAT 10
+#define A   A0
+#define B   A1
+#define C   A2
+#define D   A3
+// If your matrix has the DOUBLE HEADER input, use:
+//#define CLK 8  // MUST be on PORTB!
+//#define LAT 9
+//#define OE  10
+//#define A   A3
+//#define B   A2
+//#define C   A1
+//#define D   A0
 RGBmatrixPanel matrix(A, B, C, D, CLK, LAT, OE, false);
 
 void setup() {
