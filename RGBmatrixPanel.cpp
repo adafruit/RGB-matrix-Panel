@@ -82,7 +82,6 @@ void RGBmatrixPanel::init(uint8_t rows, uint8_t a, uint8_t b, uint8_t c,
   uint8_t sclk, uint8_t latch, uint8_t oe, boolean dbuf) {
 
   nRows = rows; // Number of multiplexed rows; actual height is 2X this
-  constructor(32, nRows * 2);
 
   // Allocate and initialize matrix buffer:
   int buffsize  = 32 * nRows * 3, // x3 = 3 bytes holds 4 planes "packed"
@@ -123,7 +122,8 @@ void RGBmatrixPanel::init(uint8_t rows, uint8_t a, uint8_t b, uint8_t c,
 // Constructor for 16x32 panel:
 RGBmatrixPanel::RGBmatrixPanel(
   uint8_t a, uint8_t b, uint8_t c,
-  uint8_t sclk, uint8_t latch, uint8_t oe, boolean dbuf) {
+  uint8_t sclk, uint8_t latch, uint8_t oe, boolean dbuf) :
+  Adafruit_GFX(32, 16) {
 
   init(8, a, b, c, sclk, latch, oe, dbuf);
 }
@@ -131,7 +131,8 @@ RGBmatrixPanel::RGBmatrixPanel(
 // Constructor for 32x32 panel:
 RGBmatrixPanel::RGBmatrixPanel(
   uint8_t a, uint8_t b, uint8_t c, uint8_t d,
-  uint8_t sclk, uint8_t latch, uint8_t oe, boolean dbuf) {
+  uint8_t sclk, uint8_t latch, uint8_t oe, boolean dbuf) :
+  Adafruit_GFX(32, 32) {
 
   init(16, a, b, c, sclk, latch, oe, dbuf);
 
