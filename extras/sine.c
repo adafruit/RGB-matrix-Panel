@@ -9,7 +9,7 @@
 int main(int argc, char *argv[]) {
 	int i;
 
-	(void)printf("static int8_t sinetab[256] PROGMEM = {\n  ");
+	(void)printf("static const int8_t PROGMEM sinetab[256] = {\n  ");
 
 	for(i=0; i<256; i++) {
 		(void)printf("%4d",

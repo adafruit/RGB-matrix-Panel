@@ -24,7 +24,7 @@
 //#define D   A0
 RGBmatrixPanel matrix(A, B, C, D, CLK, LAT, OE, false);
 
-static int8_t sinetab[256] PROGMEM = {
+static const int8_t PROGMEM sinetab[256] = {
      0,   2,   5,   8,  11,  15,  18,  21,
     24,  27,  30,  33,  36,  39,  42,  45,
     48,  51,  54,  56,  59,  62,  65,  67,

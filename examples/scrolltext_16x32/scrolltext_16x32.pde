@@ -24,7 +24,7 @@ int8_t ball[3][4] = {
   { 17, 15,  1, -1 },
   { 27,  4, -1,  1 }
 };
-PROGMEM uint16_t ballcolor[3] = {
+static const uint16_t PROGMEM ballcolor[3] = {
   0x0080, // Green=1
   0x0002, // Blue=1
   0x1000  // Red=1

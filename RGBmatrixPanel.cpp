@@ -375,7 +375,7 @@ void RGBmatrixPanel::dumpMatrix(void) {
 
   Serial.print("\n\n"
     "#include <avr/pgmspace.h>\n\n"
-    "static PROGMEM prog_uchar img[] = {\n  ");
+    "static const uint8_t PROGMEM img[] = {\n  ");
 
   for(i=0; i<buffsize; i++) {
     Serial.print("0x");
