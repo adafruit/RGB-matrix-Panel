@@ -1,7 +1,11 @@
 /*
 RGBmatrixPanel Arduino library for Adafruit 16x32 and 32x32 RGB LED
-matrix panels.  This version uses a few tricks to achieve better
-performance and/or lower CPU utilization:
+matrix panels.  Pick one up at:
+  http://www.adafruit.com/products/420
+  http://www.adafruit.com/products/607
+
+This version uses a few tricks to achieve better performance and/or
+lower CPU utilization:
 
 - To control LED brightness, traditional PWM is eschewed in favor of
   Binary Code Modulation, which operates through a succession of periods
@@ -23,6 +27,10 @@ performance and/or lower CPU utilization:
   instruction set in what seemed like an obvious chunk of code.  Since
   it's only a few short instructions, this loop is also "unrolled" --
   each iteration is stated explicitly, not through a control loop.
+
+Written by Limor Fried/Ladyada & Phil Burgess/PaintYourDragon for
+Adafruit Industries.
+BSD license, all text above must be included in any redistribution.
 */
 
 #include "RGBmatrixPanel.h"
