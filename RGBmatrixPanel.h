@@ -34,12 +34,12 @@ class RGBmatrixPanel : public Adafruit_GFX {
     Color888(uint8_t r, uint8_t g, uint8_t b, boolean gflag),
     ColorHSV(long hue, uint8_t sat, uint8_t val, boolean gflag);
 
-  // Printing
  private:
 
-  uint8_t *matrixbuff[2];
-  uint8_t nRows, nPlanes, backindex;
-  boolean swapflag;
+  uint8_t         *matrixbuff[2];
+  uint8_t          nRows;
+  volatile uint8_t backindex;
+  volatile boolean swapflag;
 
   // Init/alloc code common to both constructors:
   void init(uint8_t rows, uint8_t a, uint8_t b, uint8_t c,

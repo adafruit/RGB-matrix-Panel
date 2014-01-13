@@ -9,7 +9,10 @@
 #include <Adafruit_GFX.h>   // Core graphics library
 #include <RGBmatrixPanel.h> // Hardware-specific library
 
-#define CLK 8  // MUST be on PORTB!
+// Similar to F(), but for PROGMEM string pointers rather than literals
+#define F2(progmem_ptr) (const __FlashStringHelper *)progmem_ptr
+
+#define CLK 8  // MUST be on PORTB! (Use pin 11 on Mega)
 #define LAT A3
 #define OE  9
 #define A   A0
@@ -19,11 +22,14 @@
 // buttery smooth animation.  Note that NOTHING WILL SHOW ON THE DISPLAY
 // until the first call to swapBuffers().  This is normal.
 RGBmatrixPanel matrix(A, B, C, CLK, LAT, OE, true);
+// Double-buffered mode consumes nearly all the RAM available on the
+// Arduino Uno -- only a handful of free bytes remain.  Even the
+// following string needs to go in PROGMEM:
 
-char   str[]   = "Adafruit 16x32 RGB LED Matrix";
+const char str[] PROGMEM = "Adafruit 16x32 RGB LED Matrix";
 int    textX   = matrix.width(),
-       textMin = sizeof(str) * -12;
-long   hue     = 0;
+       textMin = sizeof(str) * -12,
+       hue     = 0;
 int8_t ball[3][4] = {
   {  3,  0,  1,  1 }, // Initial X,Y pos & velocity for 3 bouncy balls
   { 17, 15,  1, -1 },
@@ -64,11 +70,12 @@ void loop() {
   // Draw big scrolly text on top
   matrix.setTextColor(matrix.ColorHSV(hue, 255, 255, true));
   matrix.setCursor(textX, 1);
-  matrix.print(str);
+  matrix.print(F2(str));
 
   // Move text left (w/wrap), increase hue
   if((--textX) < textMin) textX = matrix.width();
   hue += 7;
+  if(hue >= 1536) hue -= 1536;
 
   // Update display
   matrix.swapBuffers(false);

@@ -43,28 +43,26 @@ BSD license, all text above must be included in any redistribution.
 // be specified as any pin within a specific PORT register stated below.
 
 #if defined(__AVR_ATmega1280__) || defined(__AVR_ATmega2560__)
- // Arduino Mega hasn't actually been tested -- use at your own peril!
+ // Arduino Mega is now tested and confirmed, with the following caveats:
  // Because digital pins 2-7 don't map to a contiguous port register,
- // the Mega will require connecting the matrix data lines to different
- // pins.  Ports A, C, and L all offer the requisite contiguous 6 bits.
- // I wanted to use PORTL in order to keep the external memory interface
- // free, but accessing the upper PORT registers in assembly seems to
- // require some additional flaming hoops and doesn't work with the
- // inline code here.  PORTA is used instead (Mega pins 22-29, though
- // only 24-29 are actually connected to the LED matrix).  Clock may be
- // any pin on PORTB -- on the Mega, this CAN'T be pins 8 or 9 (these
- // are on PORTH), thus the wiring will need to be slightly different
- // than the tutorial's explanation on the Uno, etc.  Pins 10-13 are all
- // fair game for the clock, as are pins 50-53.
+ // the Mega requires connecting the matrix data lines to different pins.
+ // Digital pins 24-29 are used for the data interface, and 22 & 23 are
+ // unavailable for other outputs because the software needs to write to
+ // the full PORTA register for speed.  Clock may be any pin on PORTB --
+ // on the Mega, this CAN'T be pins 8 or 9 (these are on PORTH), thus the
+ // wiring will need to be slightly different than the tutorial's
+ // explanation on the Uno, etc.  Pins 10-13 are all fair game for the
+ // clock, as are pins 50-53.
  #define DATAPORT PORTA
  #define DATADIR  DDRA
  #define SCLKPORT PORTB
 #elif defined(__AVR_ATmega32U4__)
- // Arduino Leonardo is still a work in progress -- DO NOT USE!!!
- // Unlike the Uno, digital pins 2-7 do NOT map to a contiguous port
- // register, dashing our hopes for compatible wiring.  This is probably
- // going to require changes both to bit-shifting code in the library,
- // and how this board is wired to the LED matrix.  Bummer.
+ // Arduino Leonardo: this is vestigial code an unlikely to ever be
+ // finished -- DO NOT USE!!!  Unlike the Uno, digital pins 2-7 do NOT
+ // map to a contiguous port register, dashing our hopes for compatible
+ // wiring.  Making this work would require significant changes both to
+ // the bit-shifting code in the library, and how this board is wired to
+ // the LED matrix.  Bummer.
  #define DATAPORT PORTD
  #define DATADIR  DDRD
  #define SCLKPORT PORTB
@@ -74,6 +72,8 @@ BSD license, all text above must be included in any redistribution.
  #define DATADIR  DDRD
  #define SCLKPORT PORTB
 #endif
+
+#define nPlanes 4
 
 // The fact that the display driver interrupt stuff is tied to the
 // singular Timer1 doesn't really take well to object orientation with
@@ -120,7 +120,6 @@ void RGBmatrixPanel::init(uint8_t rows, uint8_t a, uint8_t b, uint8_t c,
   addrbpin  = digitalPinToBitMask(b);
   addrcport = portOutputRegister(digitalPinToPort(c));
   addrcpin  = digitalPinToBitMask(c); 
-  nPlanes   = 4;     // Other code is fixed at 4 planes; don't change this
   plane     = nPlanes - 1;
   row       = nRows   - 1;
   swapflag  = false;
@@ -527,11 +526,16 @@ void RGBmatrixPanel::updateDisplay(void) {
     // A tiny bit of inline assembly is used; compiler doesn't pick
     // up on opportunity for post-increment addressing mode.
     // 5 instruction ticks per 'pew' = 160 ticks total
-    #define pew \
-      asm volatile("ld  __tmp_reg__,%a0+" :: "e"(ptr));                   \
-      asm volatile("out %0,__tmp_reg__" :: "I"(_SFR_IO_ADDR(DATAPORT)));  \
-      asm volatile("out %0,%1" :: "I"(_SFR_IO_ADDR(SCLKPORT)),"r"(tick)); \
-      asm volatile("out %0,%1" :: "I"(_SFR_IO_ADDR(SCLKPORT)),"r"(tock));
+    #define pew asm volatile(                 \
+      "ld  __tmp_reg__, %a[ptr]+"    "\n\t"   \
+      "out %[data]    , __tmp_reg__" "\n\t"   \
+      "out %[clk]     , %[tick]"     "\n\t"   \
+      "out %[clk]     , %[tock]"     "\n"     \
+      :: [ptr]  "e" (ptr),                    \
+         [data] "I" (_SFR_IO_ADDR(DATAPORT)), \
+         [clk]  "I" (_SFR_IO_ADDR(SCLKPORT)), \
+         [tick] "r" (tick),                   \
+         [tock] "r" (tock));
 
     // Loop is unrolled for speed:
     pew pew pew pew pew pew pew pew
@@ -539,10 +543,7 @@ void RGBmatrixPanel::updateDisplay(void) {
     pew pew pew pew pew pew pew pew
     pew pew pew pew pew pew pew pew
 
-    // From the "Unsolved Mysteries" department: "buffptr += 32" doesn't
-    // work here, scrambles the display.  "buffptr = ptr" does, even though
-    // both should produce the same results.  Couldn't tell you why.
-    buffptr = ptr;
+    buffptr += 32;
 
   } else { // 920 ticks from TCNT1=0 (above) to end of function
 

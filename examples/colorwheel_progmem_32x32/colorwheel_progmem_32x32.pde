@@ -15,7 +15,7 @@
 
 // If your 32x32 matrix has the SINGLE HEADER input,
 // use this pinout:
-#define CLK 8  // MUST be on PORTB!
+#define CLK 8  // MUST be on PORTB! (Use pin 11 on Mega)
 #define OE  9
 #define LAT 10
 #define A   A0
@@ -23,7 +23,7 @@
 #define C   A2
 #define D   A3
 // If your matrix has the DOUBLE HEADER input, use:
-//#define CLK 8  // MUST be on PORTB!
+//#define CLK 8  // MUST be on PORTB! (Use pin 11 on Mega)
 //#define LAT 9
 //#define OE  10
 //#define A   A3
