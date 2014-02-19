@@ -349,6 +349,11 @@ void RGBmatrixPanel::fillScreen(uint16_t c) {
   }
 }
 
+// Return address of front buffer -- can then read display directly
+uint8_t *RGBmatrixPanel::frontBuffer() {
+  return matrixbuff[1-backindex];
+}
+
 // Return address of back buffer -- can then load/store data directly
 uint8_t *RGBmatrixPanel::backBuffer() {
   return matrixbuff[backindex];

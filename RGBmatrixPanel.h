@@ -26,6 +26,7 @@ class RGBmatrixPanel : public Adafruit_GFX {
     swapBuffers(boolean),
     dumpMatrix(void);
   uint8_t
+    *frontBuffer(void),
     *backBuffer(void);
   uint16_t
     Color333(uint8_t r, uint8_t g, uint8_t b),
