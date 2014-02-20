@@ -326,7 +326,7 @@ void RGBmatrixPanel::drawPixel(int16_t x, int16_t y, uint16_t c) {
     if(r & 1)  ptr[_width] |=  B00000010; // Plane 0 R: 32 bytes ahead, bit 1
     else       ptr[_width] &= ~B00000010; // Plane 0 R unset; mask out
     if(g & 1) *ptr     |=  B00000001; // Plane 0 G: bit 0
-    if(b & 1) *ptr     |=  B00000010; // Plane 0 B: bit 0
+    if(b & 1) *ptr     |=  B00000010; // Plane 0 B: bit 1
     for(; bit < limit; bit <<= 1) {
       *ptr &= ~B11100000;             // Mask out R,G,B in one op
       if(r & bit) *ptr |= B00100000;  // Plane N R: bit 5
@@ -372,30 +372,30 @@ uint16_t RGBmatrixPanel::getPixel(int16_t x, int16_t y) {
     ptr = &matrixbuff[1-backindex][y * WIDTH * (nPlanes - 1) + x]; // Base addr
     // Plane 0 is a tricky case -- its data is spread about,
     // stored in least two bits not used by the other planes.
-    if (ptr[64] & B00000001) r |= 1;
-    if (ptr[64] & B00000010) g |= 1;
-    if (ptr[32] & B00000001) b |= 1;
+    if (ptr[64] & B00000001) r |= 1;   // Plane 0 R: 64 bytes ahead, bit 0
+    if (ptr[64] & B00000010) g |= 1;   // Plane 0 G: 64 bytes ahead, bit 1
+    if (ptr[32] & B00000001) b |= 1;   // Plane 0 B: 32 bytes ahead, bit 0
     // The remaining three image planes are more normal-ish.
     // Data is stored in the high 6 bits so it can be quickly
     // copied to the DATAPORT register w/6 output lines.
     for(; bit < limit; bit <<= 1) {
-      if (*ptr & B00000100) r |= bit;
-      if (*ptr & B00001000) g |= bit;
-      if (*ptr & B00010000) b |= bit;
-      ptr  += WIDTH;                  // Advance to next bit plane
+      if (*ptr & B00000100) r |= bit;  // Plane N R: bit 2
+      if (*ptr & B00001000) g |= bit;  // Plane N G: bit 3
+      if (*ptr & B00010000) b |= bit;  // Plane N B: bit 4
+      ptr  += WIDTH;                   // Advance to next bit plane
     }
   } else {
     // Data for the lower half of the display is stored in the upper
     // bits, except for the plane 0 stuff, using 2 least bits.
     ptr = &matrixbuff[1-backindex][(y - nRows) * WIDTH * (nPlanes - 1) + x];
-    if (ptr[32] & B00000010) r |= 1;
-    if (*ptr    & B00000001) g |= 1;
-    if (*ptr    & B00000010) b |= 1;
+    if (ptr[32] & B00000010) r |= 1;   // Plane 0 R: 32 bytes ahead, bit 1
+    if (*ptr    & B00000001) g |= 1;   // Plane 0 G: bit 0
+    if (*ptr    & B00000010) b |= 1;   // Plane 0 B: bit 1
     for(; bit < limit; bit <<= 1) {
-      if (*ptr & B00100000) r |= bit;
-      if (*ptr & B01000000) g |= bit;
-      if (*ptr & B10000000) b |= bit;
-      ptr  += WIDTH;                  // Advance to next bit plane
+      if (*ptr & B00100000) r |= bit;  // Plane N R: bit 5
+      if (*ptr & B01000000) g |= bit;  // Plane N G: bit 6
+      if (*ptr & B10000000) b |= bit;  // Plane N B: bit 7
+      ptr  += WIDTH;                   // Advance to next bit plane
     }
   }
 
