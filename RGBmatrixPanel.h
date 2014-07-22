@@ -31,11 +31,11 @@ class RGBmatrixPanel : public Adafruit_GFX {
     Color(uint8_t r, uint8_t g, uint8_t b);
   uint16_t
     Color333(uint8_t r, uint8_t g, uint8_t b),
-	Color333(uint32_t c),
+    Color333(uint32_t c),
     Color444(uint8_t r, uint8_t g, uint8_t b),
-	Color444(uint32_t c),
+    Color444(uint32_t c),
     Color888(uint8_t r, uint8_t g, uint8_t b),
-	Color888(uint32_t c),
+    Color888(uint32_t c),
     Color888(uint8_t r, uint8_t g, uint8_t b, boolean gflag),
     Color888(uint32_t c, boolean gflag),
     ColorHSV(long hue, uint8_t sat, uint8_t val, boolean gflag);
