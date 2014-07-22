@@ -1,8 +1,8 @@
 #if ARDUINO >= 100
- #include "Arduino.h"
+#include "Arduino.h"
 #else
- #include "WProgram.h"
- #include "pins_arduino.h"
+#include "WProgram.h"
+#include "pins_arduino.h"
 #endif
 #include "Adafruit_GFX.h"
 
@@ -29,15 +29,19 @@ class RGBmatrixPanel : public Adafruit_GFX {
     *backBuffer(void);
   uint16_t
     Color333(uint8_t r, uint8_t g, uint8_t b),
+	Color333(uint32_t c),
     Color444(uint8_t r, uint8_t g, uint8_t b),
+	Color444(uint32_t c),
     Color888(uint8_t r, uint8_t g, uint8_t b),
+	Color888(uint32_t c),
     Color888(uint8_t r, uint8_t g, uint8_t b, boolean gflag),
+    Color888(uint32_t c, boolean gflag),
     ColorHSV(long hue, uint8_t sat, uint8_t val, boolean gflag);
 
  private:
 
-  uint8_t         *matrixbuff[2];
-  uint8_t          nRows;
+  uint8_t *matrixbuff[2];
+  uint8_t nRows;
   volatile uint8_t backindex;
   volatile boolean swapflag;
 
@@ -56,4 +60,3 @@ class RGBmatrixPanel : public Adafruit_GFX {
   volatile uint8_t row, plane;
   volatile uint8_t *buffptr;
 };
-
