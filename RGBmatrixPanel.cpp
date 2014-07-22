@@ -265,11 +265,11 @@ uint16_t RGBmatrixPanel::Color888(
 // 8/8/8 -> gamma -> 5/6/5
 uint16_t RGBmatrixPanel::Color888(
   uint32_t c, boolean gflag) {
-  if(gflag) { // Gamma-corrected color?
     uint8_t
-    r = (uint8_t)(c >> 16),
-    g = (uint8_t)(c >>  8),
-    b = (uint8_t)c;    
+      r = (uint8_t)(c >> 16),
+      g = (uint8_t)(c >>  8),
+      b = (uint8_t)c;    
+  if(gflag) { // Gamma-corrected color?
     r = pgm_read_byte(&gamma[r]); // Gamma correction table maps
     g = pgm_read_byte(&gamma[g]); // 8-bit input to 4-bit output
     b = pgm_read_byte(&gamma[b]);
