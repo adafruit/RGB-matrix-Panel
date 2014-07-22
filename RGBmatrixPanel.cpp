@@ -266,6 +266,7 @@ uint16_t RGBmatrixPanel::Color888(
 uint16_t RGBmatrixPanel::Color888(
   uint32_t c, boolean gflag) {
   if(gflag) { // Gamma-corrected color?
+    uint8_t
     r = (uint8_t)(c >> 16),
     g = (uint8_t)(c >>  8),
     b = (uint8_t)c;    
