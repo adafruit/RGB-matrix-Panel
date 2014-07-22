@@ -188,7 +188,6 @@ void RGBmatrixPanel::begin(void) {
 // benefit of older code using one of the original color formats.
 
 
-
 // Convert separate R,G,B into packed 32-bit RGB color.
 // Packed format is always RGB.
 uint32_t RGBmatrixPanel::Color(uint8_t r, uint8_t g, uint8_t b) {
