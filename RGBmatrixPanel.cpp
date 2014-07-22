@@ -187,6 +187,14 @@ void RGBmatrixPanel::begin(void) {
 // needed when drawing. These next functions are mostly here for the
 // benefit of older code using one of the original color formats.
 
+
+
+// Convert separate R,G,B into packed 32-bit RGB color.
+// Packed format is always RGB.
+uint32_t RGBmatrixPanel::Color(uint8_t r, uint8_t g, uint8_t b) {
+  return ((uint32_t)r << 16) | ((uint32_t)g <<  8) | b;
+}
+
 // Promote 3/3/3 RGB to Adafruit_GFX 5/6/5
 uint16_t RGBmatrixPanel::Color333(uint8_t r, uint8_t g, uint8_t b) {
   // RRRrrGGGgggBBBbb
