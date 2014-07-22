@@ -6,7 +6,7 @@ Pick one up at http://www.adafruit.com/products/420 & http://www.adafruit.com/pr
 Written by Limor Fried/Ladyada & Phil Burgess/PaintYourDragon for Adafruit Industries.  
 BSD license, all text above must be included in any redistribution
 
-To download. click the ZIP (download) button, rename the uncompressed folder RGBLEDMatrix. 
+To download. click the ZIP (download) button, rename the uncompressed folder RGBmatrixPanel. 
 Check that the RGBmatrixPanel folder contains RGBmatrixPanel.cpp and RGBmatrixPanel.h
 
 Place the RGBmatrixPanel library folder your arduinosketchfolder/libraries/ folder. 
