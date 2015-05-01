@@ -1,22 +1,19 @@
 // testshapes demo for RGBmatrixPanel library.
 // Demonstrates the drawing abilities of the RGBmatrixPanel library.
-// For 32x32 RGB LED matrix.
+// For 32x64 RGB LED matrix.
 
 // NOTE THIS CAN ONLY BE USED ON A MEGA! NOT ENOUGH RAM ON UNO!
 
 #include <Adafruit_GFX.h>   // Core graphics library
 #include <RGBmatrixPanel.h> // Hardware-specific library
 
-// If your 32x32 matrix has the SINGLE HEADER input,
-// use this pinout:
-#define CLK 12  // MUST be on PORTB!
-#define OE  13
-#define LAT A0
-
-#define A   10
-#define B   A2
-#define C   11
-#define D   A1
+#define OE   9
+#define LAT 10
+#define CLK 11
+#define A   A0
+#define B   A1
+#define C   A2
+#define D   A3
 
 RGBmatrixPanel matrix(A, B, C, D, CLK, LAT, OE, false, 64);
 
