@@ -380,20 +380,20 @@ void RGBmatrixPanel::dumpMatrix(void) {
 
   int i, buffsize = WIDTH * nRows * 3;
 
-  Serial.print("\n\n"
+  Serial.print(F("\n\n"
     "#include <avr/pgmspace.h>\n\n"
-    "static const uint8_t PROGMEM img[] = {\n  ");
+    "static const uint8_t PROGMEM img[] = {\n  "));
 
   for(i=0; i<buffsize; i++) {
-    Serial.print("0x");
-    if(matrixbuff[backindex][i] < 0x10) Serial.print('0');
+    Serial.print(F("0x"));
+    if(matrixbuff[backindex][i] < 0x10) Serial.write('0');
     Serial.print(matrixbuff[backindex][i],HEX);
     if(i < (buffsize - 1)) {
-      if((i & 7) == 7) Serial.print(",\n  ");
-      else             Serial.print(',');
+      if((i & 7) == 7) Serial.print(F(",\n  "));
+      else             Serial.write(',');
     }
   }
-  Serial.println("\n};");
+  Serial.println(F("\n};"));
 }
 
 // -------------------- Interrupt handler stuff --------------------
