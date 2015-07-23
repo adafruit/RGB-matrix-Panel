@@ -206,7 +206,7 @@ uint16_t RGBmatrixPanel::Color444(uint8_t r, uint8_t g, uint8_t b) {
 // Demote 8/8/8 to Adafruit_GFX 5/6/5
 // If no gamma flag passed, assume linear color
 uint16_t RGBmatrixPanel::Color888(uint8_t r, uint8_t g, uint8_t b) {
-  return ((r & 0xF8) << 11) | ((g & 0xFC) << 5) | (b >> 3);
+  return ((uint16_t)(r & 0xF8) << 8) | ((uint16_t)(g & 0xFC) << 3) | (b >> 3);
 }
 
 // 8/8/8 -> gamma -> 5/6/5
@@ -216,11 +216,11 @@ uint16_t RGBmatrixPanel::Color888(
     r = pgm_read_byte(&gamma[r]); // Gamma correction table maps
     g = pgm_read_byte(&gamma[g]); // 8-bit input to 4-bit output
     b = pgm_read_byte(&gamma[b]);
-    return (r << 12) | ((r & 0x8) << 8) | // 4/4/4 -> 5/6/5
-           (g <<  7) | ((g & 0xC) << 3) |
-           (b <<  1) | ( b        >> 3);
+    return ((uint16_t)r << 12) | ((uint16_t)(r & 0x8) << 8) | // 4/4/4->5/6/5
+           ((uint16_t)g <<  7) | ((uint16_t)(g & 0xC) << 3) |
+           (          b <<  1) | (           b        >> 3);
   } // else linear (uncorrected) color
-  return ((r & 0xF8) << 11) | ((g & 0xFC) << 5) | (b >> 3);
+  return ((uint16_t)(r & 0xF8) << 8) | ((uint16_t)(g & 0xFC) << 3) | (b >> 3);
 }
 
 uint16_t RGBmatrixPanel::ColorHSV(
