@@ -36,6 +36,10 @@ BSD license, all text above must be included in any redistribution.
 #include "RGBmatrixPanel.h"
 #include "gamma.h"
 
+#ifndef _swap_int16_t
+#define _swap_int16_t(a, b) { int16_t t = a; a = b; b = t; }
+#endif
+
 // A full PORT register is required for the data lines, though only the
 // top 6 output bits are used.  For performance reasons, the port # cannot
 // be changed via library calls, only by changing constants in the library.
@@ -274,7 +278,7 @@ void RGBmatrixPanel::drawPixel(int16_t x, int16_t y, uint16_t c) {
 
   switch(rotation) {
    case 1:
-    swap(x, y);
+    _swap_int16_t(x, y);
     x = WIDTH  - 1 - x;
     break;
    case 2:
@@ -282,7 +286,7 @@ void RGBmatrixPanel::drawPixel(int16_t x, int16_t y, uint16_t c) {
     y = HEIGHT - 1 - y;
     break;
    case 3:
-    swap(x, y);
+    _swap_int16_t(x, y);
     y = HEIGHT - 1 - y;
     break;
   }
