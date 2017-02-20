@@ -407,66 +407,82 @@ ISR(TIMER1_OVF_vect, ISR_BLOCK) { // ISR_BLOCK important -- see notes later
   TIFR1 |= TOV1;                  // Clear Timer1 interrupt flag
 }
 
-// Two constants are used in timing each successive BCM interval.
-// These were found empirically, by checking the value of TCNT1 at
-// certain positions in the interrupt code.
-// CALLOVERHEAD is the number of CPU 'ticks' from the timer overflow
-// condition (triggering the interrupt) to the first line in the
-// updateDisplay() method.  It's then assumed (maybe not entirely 100%
-// accurately, but close enough) that a similar amount of time will be
-// needed at the opposite end, restoring regular program flow.
-// LOOPTIME is the number of 'ticks' spent inside the shortest data-
-// issuing loop (not actually a 'loop' because it's unrolled, but eh).
-// Both numbers are rounded up slightly to allow a little wiggle room
-// should different compilers produce slightly different results.
-#define CALLOVERHEAD 60   // Actual value measured = 56
-#define LOOPTIME     200  // Actual value measured = 188
-// The "on" time for bitplane 0 (with the shortest BCM interval) can
-// then be estimated as LOOPTIME + CALLOVERHEAD * 2.  Each successive
-// bitplane then doubles the prior amount of time.  We can then
-// estimate refresh rates from this:
+// The BCM methodology works great for many things. It works poorly for
+// light, because light isn't really linear; a light on 1% of the time is
+// not "1% as bright" as a light on all the time. (This is why the gamma
+// table for the BCM implementation has everything under 0x40 on an 8-bit
+// scale map to zero, rather than mapping 0x10 to 1.)
+//
+// It takes about 200 cycles to run through the loop, and about 60 cycles
+// on each side for interrupt handling. The original BCM implementation
+// thus used four time intervals: 320, 640, 1280, 2560 cycles. That is
+// way too bright on the low end.
+//
+// Additional observation: The interrupt handler time of ~120 cycles total
+// is pretty large compared to a 200-cycle loop. So, we skip the first
+// interrupt; we draw plane 0, then immediately draw plane 1, and only use
+// timer interval for the times when plane 1, 2, or 3 are being displayed,
+// which are the times when planes 2, 3, and 0 are being drawn. (Because the
+// drawing code happens during the time when the previous plane's pixels are
+// lit.)
+//
+// So instead of using the actual full loop time for the shortest interval,
+// giving us close to 25% perceptual brightness, we use pretty much the
+// shortest time we can, performing about two operations before turning the
+// lights back off. That gets us a much dimmer "dimmest" light for a given
+// pixel. Then we jump to the top of the interrupt handler and re-run it
+// immediately, saving 120 cycles of interrupt handling.
+//
+// The second display interval is longer, but still shorter than the timer
+// interrupt; we turn the display off before we return from the interrupt
+// handler.
+//
+// That leaves us a fair bit of time for the third and fourth intervals.
+
+// The calculations from the BCM implementation were:
 // 4 bitplanes = 320 + 640 + 1280 + 2560 = 4800 ticks per row.
 // 4800 ticks * 16 rows (for 32x32 matrix) = 76800 ticks/frame.
 // 16M CPU ticks/sec / 76800 ticks/frame = 208.33 Hz.
 // Actual frame rate will be slightly less due to work being done
 // during the brief "LEDs off" interval...it's reasonable to say
-// "about 200 Hz."  The 16x32 matrix only has to scan half as many
-// rows...so we could either double the refresh rate (keeping the CPU
-// load the same), or keep the same refresh rate but halve the CPU
-// load.  We opted for the latter.
-// Can also estimate CPU use: bitplanes 1-3 all use 320 ticks to
-// issue data (the increasing gaps in the timing invervals are then
-// available to other code), and bitplane 0 takes 920 ticks out of
-// the 2560 tick interval.
-// 320 * 3 + 920 = 1880 ticks spent in interrupt code, per row.
-// From prior calculations, about 4800 ticks happen per row.
-// CPU use = 1880 / 4800 = ~39% (actual use will be very slightly
-// higher, again due to code used in the LEDs off interval).
-// 16x32 matrix uses about half that CPU load.  CPU time could be
-// further adjusted by padding the LOOPTIME value, but refresh rates
-// will decrease proportionally, and 200 Hz is a decent target.
+// "about 200 Hz."
+//
+// For the not-really-BCM implementation, we've used about 520 ticks
+// for the first two bitplanes. The third and fourth display intervals
+// will be approximately 60 cycles longer than whatever duration we
+// set the timer for. Also, we want some time between Plane 1 being
+// drawn and Plane 2 being drawn, even though we'eve already turned off
+// the display at that point, in case other code wants to run; 520
+// ticks is maybe reasonable, 720 would be starting to push it if you're
+// also using 400kHz i2c or something. So we set an interrupt timer for
+// about 400 cycles, starting right before drawing Plane 1. That will
+// fire about 200 cycles later, leaving at least a little time for other
+// operations, and we'll be at about 720 total cycles between code
+// execution and delay. So we have about another 4180 cycles available
+// if we want to keep our performance comparable. Let's call that
+// 800 and 3200 cycle delays, plus interrupt overhead.
+//
+// The BCM implementation used about 320 ticks per plane for the first
+// three planes drawn, and 920 for the last one. This code trims about
+// 120 cycles off that by skipping one round of interrupt handling, but
+// is otherwise similar. So it should use slightly less CPU time at
+// the same display refresh rate.
+//
 
-// The flow of the interrupt can be awkward to grasp, because data is
-// being issued to the LED matrix for the *next* bitplane and/or row
-// while the *current* plane/row is being shown.  As a result, the
-// counter variables change between past/present/future tense in mid-
-// function...hopefully tenses are sufficiently commented.
+static const uint16_t PROGMEM durations[] = {
+	0, 400, 800, 3200,
+};
 
 void RGBmatrixPanel::updateDisplay(void) {
   uint8_t  i, tick, tock, *ptr;
   uint16_t t, duration;
 
+restart:
   *oeport  |= oepin;  // Disable LED output during row/plane switchover
   *latport |= latpin; // Latch data loaded during *prior* interrupt
 
-  // Calculate time to next interrupt BEFORE incrementing plane #.
-  // This is because duration is the display time for the data loaded
-  // on the PRIOR interrupt.  CALLOVERHEAD is subtracted from the
-  // result because that time is implicit between the timer overflow
-  // (interrupt triggered) and the initial LEDs-off line at the start
-  // of this method.
-  t = (nRows > 8) ? LOOPTIME : (LOOPTIME * 2);
-  duration = ((t + CALLOVERHEAD * 2) << plane) - CALLOVERHEAD;
+  // use precomputed values; see discussion above.
+  duration = pgm_read_word(&durations[plane]);
 
   // Borrowing a technique here from Ray's Logic:
   // www.rayslogic.com/propeller/Programming/AdafruitRGB/AdafruitRGB.htm
@@ -505,8 +521,11 @@ void RGBmatrixPanel::updateDisplay(void) {
   // A local register copy can speed some things up:
   ptr = (uint8_t *)buffptr;
 
-  ICR1      = duration; // Set interval for next interrupt
-  TCNT1     = 0;        // Restart interrupt timer
+  // set interval timer, but only if we want one.
+  if (duration != 0) {
+  	ICR1      = duration; // Set interval for next interrupt
+  	TCNT1     = 0;        // Restart interrupt timer
+  }
   *oeport  &= ~oepin;   // Re-enable output
   *latport &= ~latpin;  // Latch down
 
@@ -521,6 +540,11 @@ void RGBmatrixPanel::updateDisplay(void) {
   tock = SCLKPORT;
   tick = tock | sclkpin;
 
+  // Yes, really, two whole instructions later, plus the branch. It's still
+  // quite visible.
+  if (plane == 1) {
+    *oeport  |= oepin;  // during draw of plane 1, plane 0 is up, make that be shorter
+  }
   if(plane > 0) { // 188 ticks from TCNT1=0 (above) to end of function
 
     // Planes 1-3 copy bytes directly from RAM to PORT without unpacking.
@@ -546,6 +570,12 @@ void RGBmatrixPanel::updateDisplay(void) {
     pew pew pew pew pew pew pew pew
     pew pew pew pew pew pew pew pew
     pew pew pew pew pew pew pew pew
+    // according to previous measurements, this is about 180ish cycles later
+    // than we turned off plane 0. perceptually, it's on the rough order of
+    // "twice as bright".
+    if (plane == 2) {
+      *oeport  |= oepin;  // during draw of plane 2, plane 1 is up, shorten that interval
+    }
 
       if (WIDTH == 64) {
     pew pew pew pew pew pew pew pew
@@ -576,5 +606,10 @@ void RGBmatrixPanel::updateDisplay(void) {
       SCLKPORT = tock; // Clock hi
     } 
   }
+  /* timer interrupt overhead makes it cost a LOT of cycles to return when the next
+   * interrupt should be almost immediate, so we just skip back up once:
+   */
+  if (plane == 1)
+    goto restart;
 }
 
