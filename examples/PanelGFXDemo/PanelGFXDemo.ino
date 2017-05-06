@@ -277,10 +277,7 @@ void fixdrawRGBBitmap(int16_t x, int16_t y, const uint16_t *bitmap, int16_t w, i
 	//Serial.print(" -> ");
 	//Serial.println(RGB_bmp_fixed[pixel], HEX);
     }
-    // Non color fixed, progmem read.
-    //matrix->drawRGBBitmap(x, y, bitmap, w, h, true);
-    // Color fixed, direct read from RAM.
-    matrix->drawRGBBitmap(x, y, RGB_bmp_fixed, w, h, false);
+    matrix->drawRGBBitmap(x, y, RGB_bmp_fixed, w, h);
 }
 
 // Fill the screen with multiple levels of white to gauge the quality
@@ -469,7 +466,7 @@ void display_panOrBounceBitmap (uint8_t bitmapSize) {
 	// bounce 8x8 tri color smiley face around the screen
 	if (bitmapSize == 8) fixdrawRGBBitmap(x, y, RGB_bmp[10], 8, 8);
 	// pan 24x24 pixmap
-	if (bitmapSize == 24) matrix->drawRGBBitmap(x, y, bitmap24, bitmapSize, bitmapSize, true);
+	if (bitmapSize == 24) matrix->drawRGBBitmap(x, y, (const uint16_t *)bitmap24, bitmapSize, bitmapSize);
 	matrix->show();
 	 
 	// Only pan if the display size is smaller than the pixmap
