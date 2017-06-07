@@ -1,6 +1,8 @@
-// Adafruit_NeoMatrix example for single NeoPixel Shield.
+// RGB Panel GFX Demo example for 16x32 panel
 // By Marc MERLIN <marc_soft@merlins.org>
 // Contains code (c) Adafruit, license BSD
+
+// REQUIRES A MEGA!
 
 #include <Adafruit_GFX.h>
 
@@ -9,7 +11,7 @@
 #include <Adafruit_GFX.h>   // Core graphics library
 #include <RGBmatrixPanel.h> // Hardware-specific library
 
-#define CLK 11  // MUST be on PORTB! (Use pin 8 on Uno)
+#define CLK 11  // MUST be on PORTB! 
 #define LAT A3
 #define OE  9
 #define A   A0
