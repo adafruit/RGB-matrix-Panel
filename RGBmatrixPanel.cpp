@@ -191,28 +191,6 @@ void RGBmatrixPanel::begin(void) {
 // needed when drawing.  These next functions are mostly here for the
 // benefit of older code using one of the original color formats.
 
-// Promote 3/3/3 RGB to Adafruit_GFX 5/6/5
-uint16_t RGBmatrixPanel::Color333(uint8_t r, uint8_t g, uint8_t b) {
-  // RRRrrGGGgggBBBbb
-  return ((r & 0x7) << 13) | ((r & 0x6) << 10) |
-         ((g & 0x7) <<  8) | ((g & 0x7) <<  5) |
-         ((b & 0x7) <<  2) | ((b & 0x6) >>  1);
-}
-
-// Promote 4/4/4 RGB to Adafruit_GFX 5/6/5
-uint16_t RGBmatrixPanel::Color444(uint8_t r, uint8_t g, uint8_t b) {
-  // RRRRrGGGGggBBBBb
-  return ((r & 0xF) << 12) | ((r & 0x8) << 8) |
-         ((g & 0xF) <<  7) | ((g & 0xC) << 3) |
-         ((b & 0xF) <<  1) | ((b & 0x8) >> 3);
-}
-
-// Demote 8/8/8 to Adafruit_GFX 5/6/5
-// If no gamma flag passed, assume linear color
-uint16_t RGBmatrixPanel::Color888(uint8_t r, uint8_t g, uint8_t b) {
-  return ((uint16_t)(r & 0xF8) << 8) | ((uint16_t)(g & 0xFC) << 3) | (b >> 3);
-}
-
 // 8/8/8 -> gamma -> 5/6/5
 uint16_t RGBmatrixPanel::Color888(
   uint8_t r, uint8_t g, uint8_t b, boolean gflag) {
