@@ -31,10 +31,65 @@ lower CPU utilization:
 Written by Limor Fried/Ladyada & Phil Burgess/PaintYourDragon for
 Adafruit Industries.
 BSD license, all text above must be included in any redistribution.
+
+    ****************
+
+Support for Feather M0 contributed by ee-quipment.com
+
+To support the Feather M0, direct writes to AVR ports have been replaced with
+direct writes to Zero ports that work on the Feather M0. The pinouts are fixed
+and do not conflict with the SPI or I2C ports. The LED_BUILTIN port is used however.
+
+Panel Pins:      OE   LAT        B2    G2    R2    B1    G1    R1       CLK         D         C     B         A
+Connector Pins:  15    14         7     6     5     3     2     1        13        12        11    10         9
+Feather Pins:     7     6        20    24    22    25    23    19        14        21         9     8         5
+Port Pins:      PB09  PB08  ..  PA20  PA19  PA18  PA17  PA16  PA15  ..  PA11  ..  PA07  ..  PA05  PA04  ..  PA02
+Arduino IDE:     16    15         6    12    10    13    11     5         0         9        18    17        14
+
+Schematics and a board layout are available at https://github.com/ee-quipment/RGB-matrix-Panel-Zero
+A bare board can be ordered from OshPark at https://oshpark.com/shared_projects/1QNzmjwa
+
+To set up interrupts a third-party library is used:
+#include  <avdweb_SAMDtimer.h>  //http://www.avdweb.nl/arduino/libraries/samd21-timer.html
+
 */
 
 #include "RGBmatrixPanel.h"
-#include "gamma.h"
+
+static const uint8_t gamma_lut[] = {
+  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+  0x00,0x00,0x01,0x01,0x01,0x01,0x01,0x01,
+  0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,
+  0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,
+  0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,
+  0x01,0x01,0x01,0x01,0x01,0x01,0x02,0x02,
+  0x02,0x02,0x02,0x02,0x02,0x02,0x02,0x02,
+  0x02,0x02,0x02,0x02,0x02,0x02,0x02,0x02,
+  0x02,0x02,0x02,0x02,0x02,0x03,0x03,0x03,
+  0x03,0x03,0x03,0x03,0x03,0x03,0x03,0x03,
+  0x03,0x03,0x03,0x03,0x03,0x03,0x03,0x04,
+  0x04,0x04,0x04,0x04,0x04,0x04,0x04,0x04,
+  0x04,0x04,0x04,0x04,0x04,0x04,0x05,0x05,
+  0x05,0x05,0x05,0x05,0x05,0x05,0x05,0x05,
+  0x05,0x05,0x05,0x06,0x06,0x06,0x06,0x06,
+  0x06,0x06,0x06,0x06,0x06,0x06,0x06,0x07,
+  0x07,0x07,0x07,0x07,0x07,0x07,0x07,0x07,
+  0x07,0x07,0x08,0x08,0x08,0x08,0x08,0x08,
+  0x08,0x08,0x08,0x08,0x09,0x09,0x09,0x09,
+  0x09,0x09,0x09,0x09,0x09,0x0a,0x0a,0x0a,
+  0x0a,0x0a,0x0a,0x0a,0x0a,0x0a,0x0b,0x0b,
+  0x0b,0x0b,0x0b,0x0b,0x0b,0x0b,0x0c,0x0c,
+  0x0c,0x0c,0x0c,0x0c,0x0c,0x0c,0x0d,0x0d,
+  0x0d,0x0d,0x0d,0x0d,0x0d,0x0e,0x0e,0x0e,
+  0x0e,0x0e,0x0e,0x0e,0x0f,0x0f,0x0f,0x0f
+};
 
 #ifndef _swap_int16_t
 #define _swap_int16_t(a, b) { int16_t t = a; a = b; b = t; }
@@ -70,6 +125,27 @@ BSD license, all text above must be included in any redistribution.
  #define DATAPORT PORTD
  #define DATADIR  DDRD
  #define SCLKPORT PORTB
+#elif defined(ARDUINO_SAMD_FEATHER_M0)
+ // Arduino IDE pin mapping -- hard coded, cannot be changed by user
+ #define ZERO_CLK    0
+ #define ZERO_LAT   15
+ #define ZERO_OE    16
+ #define ZERO_A     14
+ #define ZERO_B     17
+ #define ZERO_C     18
+ #define ZERO_D      9
+ #define ZERO_R1     5
+ #define ZERO_G1    11
+ #define ZERO_B1    13
+ #define ZERO_R2    10
+ #define ZERO_G2    12
+ #define ZERO_B2     6
+ //Row refresh timer library and interrupt forward declaration
+ #include  <avdweb_SAMDtimer.h>  //http://www.avdweb.nl/arduino/libraries/samd21-timer.html
+ void ISR_LEDPanelRefresh(struct tc_module *const module_inst);
+ #define LED_PANEL_REFRESH_RATE    100   // Hz, up to a maximum of TBD
+
+
 #else
  // Ports for "standard" boards (Arduino Uno, Duemilanove, etc.)
  #define DATAPORT PORTD
@@ -111,6 +187,7 @@ void RGBmatrixPanel::init(uint8_t rows, uint8_t a, uint8_t b, uint8_t c,
   _latch = latch;
   _oe    = oe;
 
+#if !defined(ARDUINO_SAMD_FEATHER_M0)
   // Look up port registers and pin masks ahead of time,
   // avoids many slow digitalWrite() calls later.
   sclkpin   = digitalPinToBitMask(sclk);
@@ -123,7 +200,8 @@ void RGBmatrixPanel::init(uint8_t rows, uint8_t a, uint8_t b, uint8_t c,
   addrbport = portOutputRegister(digitalPinToPort(b));
   addrbpin  = digitalPinToBitMask(b);
   addrcport = portOutputRegister(digitalPinToPort(c));
-  addrcpin  = digitalPinToBitMask(c); 
+  addrcpin  = digitalPinToBitMask(c);
+#endif
   plane     = nPlanes - 1;
   row       = nRows   - 1;
   swapflag  = false;
@@ -149,8 +227,10 @@ RGBmatrixPanel::RGBmatrixPanel(
 
   // Init a few extra 32x32-specific elements:
   _d        = d;
+#if !defined(ARDUINO_SAMD_FEATHER_M0)
   addrdport = portOutputRegister(digitalPinToPort(d));
   addrdpin  = digitalPinToBitMask(d);
+#endif
 }
 
 void RGBmatrixPanel::begin(void) {
@@ -159,6 +239,25 @@ void RGBmatrixPanel::begin(void) {
   buffptr     = matrixbuff[1 - backindex]; // -> front buffer
   activePanel = this;                      // For interrupt hander
 
+#if defined(ARDUINO_SAMD_FEATHER_M0)
+  pinMode(ZERO_CLK,  OUTPUT);
+  pinMode(ZERO_LAT,  OUTPUT);
+  pinMode(ZERO_OE,   OUTPUT);
+  pinMode(ZERO_A,    OUTPUT);
+  pinMode(ZERO_B,    OUTPUT);
+  pinMode(ZERO_C,    OUTPUT);
+  if(nRows > 8) { pinMode(ZERO_D,    OUTPUT); }
+  pinMode(ZERO_R1,   OUTPUT);
+  pinMode(ZERO_G1,   OUTPUT);
+  pinMode(ZERO_B1,   OUTPUT);
+  pinMode(ZERO_R2,   OUTPUT);
+  pinMode(ZERO_G2,   OUTPUT);
+  pinMode(ZERO_B2,   OUTPUT);
+
+  unsigned interrupt_interval_us = 1000000 / (16 * nRows * LED_PANEL_REFRESH_RATE); // 16 is color depth
+  static SAMDtimer timer(4, ISR_LEDPanelRefresh, interrupt_interval_us);
+
+#else
   // Enable all comm & address pins as outputs, set default states:
   pinMode(_sclk , OUTPUT); SCLKPORT   &= ~sclkpin;  // Low
   pinMode(_latch, OUTPUT); *latport   &= ~latpin;   // Low
@@ -181,6 +280,7 @@ void RGBmatrixPanel::begin(void) {
   ICR1    = 100;
   TIMSK1 |= _BV(TOIE1); // Enable Timer1 interrupt
   sei();                // Enable global interrupts
+#endif
 }
 
 // Original RGBmatrixPanel library used 3/3/3 color.  Later version used
@@ -217,9 +317,9 @@ uint16_t RGBmatrixPanel::Color888(uint8_t r, uint8_t g, uint8_t b) {
 uint16_t RGBmatrixPanel::Color888(
   uint8_t r, uint8_t g, uint8_t b, boolean gflag) {
   if(gflag) { // Gamma-corrected color?
-    r = pgm_read_byte(&gamma[r]); // Gamma correction table maps
-    g = pgm_read_byte(&gamma[g]); // 8-bit input to 4-bit output
-    b = pgm_read_byte(&gamma[b]);
+    r = pgm_read_byte(&gamma_lut[r]); // Gamma correction table maps
+    g = pgm_read_byte(&gamma_lut[g]); // 8-bit input to 4-bit output
+    b = pgm_read_byte(&gamma_lut[b]);
     return ((uint16_t)r << 12) | ((uint16_t)(r & 0x8) << 8) | // 4/4/4->5/6/5
            ((uint16_t)g <<  7) | ((uint16_t)(g & 0xC) << 3) |
            (          b <<  1) | (           b        >> 3);
@@ -258,9 +358,9 @@ uint16_t RGBmatrixPanel::ColorHSV(
   // to allow shifts, and upgrade to int makes other conversions implicit.
   v1 = val + 1;
   if(gflag) { // Gamma-corrected color?
-    r = pgm_read_byte(&gamma[(r * v1) >> 8]); // Gamma correction table maps
-    g = pgm_read_byte(&gamma[(g * v1) >> 8]); // 8-bit input to 4-bit output
-    b = pgm_read_byte(&gamma[(b * v1) >> 8]);
+    r = pgm_read_byte(&gamma_lut[(r * v1) >> 8]); // Gamma correction table maps
+    g = pgm_read_byte(&gamma_lut[(g * v1) >> 8]); // 8-bit input to 4-bit output
+    b = pgm_read_byte(&gamma_lut[(b * v1) >> 8]);
   } else { // linear (uncorrected) color
     r = (r * v1) >> 12; // 4-bit results
     g = (g * v1) >> 12;
@@ -401,7 +501,7 @@ void RGBmatrixPanel::dumpMatrix(void) {
 }
 
 // -------------------- Interrupt handler stuff --------------------
-
+#if !defined(ARDUINO_SAMD_FEATHER_M0)
 ISR(TIMER1_OVF_vect, ISR_BLOCK) { // ISR_BLOCK important -- see notes later
   activePanel->updateDisplay();   // Call refresh func for active display
   TIFR1 |= TOV1;                  // Clear Timer1 interrupt flag
@@ -574,7 +674,191 @@ void RGBmatrixPanel::updateDisplay(void) {
         ((ptr[i+WIDTH*2] << 2) & 0x0C);
       SCLKPORT = tick; // Clock lo
       SCLKPORT = tock; // Clock hi
-    } 
+    }
   }
 }
+
+#else     // ARDUINO_SAMD_FEATHER_M0
+
+/*******************************************************************************
+
+  All the magic to support the Feather M0 occurs here in the interrupt handler.
+
+  Timer 4 is configured to interrupt at a rate 16x the desired panel refresh
+  rate to enable Binary Code Modulation. Unlike the AVR interrupt handler,
+  the Feather M0 refresh algorithm does not change the interrupt interval.
+  Instead, the interrupt will return immediately until the current plane
+  has been displayed the required amount of time.
+    Plane 0 is displayed for only 1 interrupt interval.
+    Planes 1, 2, and 3 are displayed for 2, 4, and 8 interrupt intervals respectively.
+
+  The original AVR refresh algorithm is kept in spirit, but is modified somewhat
+  to make it more efficient for the ARM M0+ core. The original AVR comments
+  are embedded in the code below.
+
+  Max time spent in the interrupt handler is < 25 uS worst case (preparing plane 0).
+  The maximum refresh rate for a 32 row panel is
+      1 / (25uS x 16 rows x 16 bcm_intervals) = 156 Hz
+
+  The screen is actually refreshed only 4 times out of the 16 bcm_intervals that
+  the interrupt handler is called for each row so the worst case CPU overhead
+  at the maximum refresh rate is only 25%.
+
+ ******************************************************************************/
+
+// Pointers to PORT Output Set/Clear registers
+volatile uint32_t *setPortA = &PORT->Group[PORTA].OUTSET.reg;
+volatile uint32_t *clrPortA = &PORT->Group[PORTA].OUTCLR.reg;
+volatile uint32_t *setPortB = &PORT->Group[PORTB].OUTSET.reg;
+volatile uint32_t *clrPortB = &PORT->Group[PORTB].OUTCLR.reg;
+
+static const uint32_t  PIXEL_MASK   = 0x3f << 15;
+static const uint32_t  CLK_MASK     = 0x01 << 11;
+static const uint32_t  LAT_MASK     = 0x01 << 8;    // port B
+static const uint32_t  OE_MASK      = 0x01 << 9;    // port B
+static const uint32_t  ABCD_MASK    = 0x2d << 2;
+static const uint32_t  A_MASK       = 0x01;
+static const uint32_t  BC_MASK      = 0x06;
+static const uint32_t  D_MASK       = 0x08;
+static const uint32_t  PLANE0_MASK  = 0x03030303;
+
+/*******************************************************************************
+    Timer 4 interrupt handler.
+******************************************************************************/
+void ISR_LEDPanelRefresh(struct tc_module *const module_inst) {
+  activePanel->updateDisplay();   // Call refresh func for active display
+}
+
+void RGBmatrixPanel::updateDisplay(void) {
+  static uint32_t plane_dly_cnt=0;
+  uint8_t  i, *ptr;
+
+  /*******************************************************************************
+      The plane variable is the plane that will be displayed next. The plane
+      being displayed now is the previous plane.
+   ******************************************************************************/
+  if (++plane_dly_cnt < (1 << (plane+3) % 4)) { return; }
+  plane_dly_cnt = 0;
+
+  // Disable LED output during row/plane switchover
+  // Latch data loaded during *prior* interrupt
+  *setPortB = OE_MASK | LAT_MASK;
+
+  // Borrowing a technique here from Ray's Logic:
+  // www.rayslogic.com/propeller/Programming/AdafruitRGB/AdafruitRGB.htm
+  // This code cycles through all four planes for each scanline before
+  // advancing to the next line.  While it might seem beneficial to
+  // advance lines every time and interleave the planes to reduce
+  // vertical scanning artifacts, in practice with this panel it causes
+  // a green 'ghosting' effect on black pixels, a much worse artifact.
+
+  /*******************************************************************************
+      Reordered original logic to minimize time while display is blanked.
+   ******************************************************************************/
+  ++plane;
+  if(plane == 1) {
+      // Plane 0 was loaded on prior interrupt invocation and is about to
+      // latch now, so update the row address lines before we do that:
+      /*******************************************************************************
+          Set the ABCD pins to the row address.
+          Sadly, the port address pins are not contiguous.
+          The D pin is always driven. If the panel only has 16 rows then the
+          D address was not configured as an output so it doesn't matter.
+       ******************************************************************************/
+      *clrPortA = ABCD_MASK;
+      *setPortA = ((row & D_MASK) << 4) | ((row & BC_MASK) << 3) | ((row & A_MASK) << 2);
+  }
+
+  *clrPortB = LAT_MASK | OE_MASK; // Re-enable output and set the latch
+
+  if(plane >= nPlanes) {          // Advance plane counter.  Maxed out?
+    plane = 0;                    // Yes, reset to plane 0, and
+    if(++row >= nRows) {          // advance row counter.  Maxed out?
+      row     = 0;                // Yes, reset row counter, then...
+      if(swapflag == true) {      // Swap front/back buffers if requested
+        backindex = 1 - backindex;
+        swapflag  = false;
+      }
+      buffptr = matrixbuff[1-backindex]; // Reset into front buffer
+    }
+  }
+
+  /*******************************************************************************
+      AVR pixel output algorithm replaced. No assembly is used, the ARM
+      compiler is sufficiently (that is to say VERY) efficient.
+      The LSb of the pixel is bit 2, and the LSb of the port is bit 15, so
+      the pixels are shifted 13 bits to align them with the port.
+   ******************************************************************************/
+  // buffptr, being 'volatile' type, doesn't take well to optimization.
+  // A local register copy can speed some things up:
+  ptr = (uint8_t *) buffptr;
+  if (plane > 0) {
+      // Planes 1-3 copy bytes directly from RAM to PORT without unpacking.
+      // The least 2 bits (used for plane 0 data) are masked out.
+      // loop is unrolled x4
+      for (int col=0; col<WIDTH; col+=4) {
+          *clrPortA = CLK_MASK + PIXEL_MASK;        // clk low, pixel data zeroed
+          *setPortA = (*ptr++ << 13) & PIXEL_MASK;  // write pixel data
+          *setPortA = CLK_MASK;                     // clk high
+          *clrPortA = CLK_MASK + PIXEL_MASK;
+          *setPortA = (*ptr++ << 13) & PIXEL_MASK;
+          *setPortA = CLK_MASK;
+          *clrPortA = CLK_MASK + PIXEL_MASK;
+          *setPortA = (*ptr++ << 13) & PIXEL_MASK;
+          *setPortA = CLK_MASK;
+          *clrPortA = CLK_MASK + PIXEL_MASK;
+          *setPortA = (*ptr++ << 13) & PIXEL_MASK;
+          *setPortA = CLK_MASK;
+      }
+      buffptr += WIDTH;
+  }
+
+  else {
+      // Planes 1-3 (handled above) formatted their data "in place,"
+      // their layout matching that out the output PORT register (where
+      // 6 bits correspond to output data lines), maximizing throughput
+      // as no conversion or unpacking is needed.  Plane 0 then takes up
+      // the slack, with all its data packed into the 2 least bits not
+      // used by the other planes.  This works because the unpacking and
+      // output for plane 0 is handled while plane 3 is being displayed...
+      // because binary coded modulation is used (not PWM), that plane
+      // has the longest display interval, so the extra work fits.
+      //
+      /*******************************************************************************
+          Unroll the loop x4 by reading 4 bytes from each plane at a time.
+          Unrolled loop is equivalent to:
+
+           for(i=0; i<WIDTH; i++) {
+              *clrPortA = CLK_MASK + PIXEL_MASK;
+              *setPortA = (((ptr[i] & 0x03) << 4) | ((ptr[i+WIDTH] & 0x03) << 2) | (ptr[i+WIDTH*2] & 0x03)) << 15;
+              *setPortA = CLK_MASK;
+          }
+
+       ******************************************************************************/
+
+      // Unroll the loop x4 by reading 4 bytes from each plane at a time.
+      uint32_t plane0_g1r1, plane0_r2b1, plane0_b2g2;
+      uint32_t pixel;
+
+      for(i=0; i<WIDTH; i+=4) {
+          plane0_b2g2 = ((* ((uint32_t *) (ptr+i))) & PLANE0_MASK) << 4;
+          plane0_r2b1 = ((* ((uint32_t *) (ptr+i+WIDTH))) & PLANE0_MASK) << 2;
+          plane0_g1r1 =  (* ((uint32_t *) (ptr+i+WIDTH+WIDTH))) & PLANE0_MASK;
+          pixel = plane0_g1r1 | plane0_r2b1 | plane0_b2g2;
+          *clrPortA = CLK_MASK + PIXEL_MASK;        // clk low, pixel data zeroed
+          *setPortA = (pixel << 15) & PIXEL_MASK;
+          *setPortA = CLK_MASK;                     // clk high
+          *clrPortA = CLK_MASK + PIXEL_MASK;
+          *setPortA = (pixel << 7) & PIXEL_MASK;
+          *setPortA = CLK_MASK;
+          *clrPortA = CLK_MASK + PIXEL_MASK;
+          *setPortA = (pixel >> 1) & PIXEL_MASK;
+          *setPortA = CLK_MASK;
+          *clrPortA = CLK_MASK + PIXEL_MASK;
+          *setPortA = (pixel >> 9) & PIXEL_MASK;
+          *setPortA = CLK_MASK;
+      }
+  }
+}
+#endif
 
