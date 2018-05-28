@@ -1,3 +1,6 @@
+#ifndef RGBMATRIXPANEL_H
+#define RGBMATRIXPANEL_H
+
 #if ARDUINO >= 100
  #include "Arduino.h"
 #else
@@ -58,3 +61,4 @@ class RGBmatrixPanel : public Adafruit_GFX {
   volatile uint8_t *buffptr;
 };
 
+#endif // RGBMATRIXPANEL_H
