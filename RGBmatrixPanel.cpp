@@ -70,6 +70,8 @@ BSD license, all text above must be included in any redistribution.
  #define DATAPORT PORTD
  #define DATADIR  DDRD
  #define SCLKPORT PORTB
+#elif defined(ARDUINO_ARCH_SAMD)
+  // Support for ATSAMD21-based boards, done with rwreg!
 #else
  // Ports for "standard" boards (Arduino Uno, Duemilanove, etc.)
  #define DATAPORT PORTD
@@ -160,7 +162,7 @@ void RGBmatrixPanel::begin(void) {
   activePanel = this;                      // For interrupt hander
 
   // Enable all comm & address pins as outputs, set default states:
-  pinMode(_sclk , OUTPUT); SCLKPORT   &= ~sclkpin;  // Low
+  pinMode(_sclk , OUTPUT); digitalWrite(_sclk, LOW);  // Low
   pinMode(_latch, OUTPUT); *latport   &= ~latpin;   // Low
   pinMode(_oe   , OUTPUT); *oeport    |= oepin;     // High (disable output)
   pinMode(_a    , OUTPUT); *addraport &= ~addrapin; // Low
@@ -170,17 +172,43 @@ void RGBmatrixPanel::begin(void) {
     pinMode(_d  , OUTPUT); *addrdport &= ~addrdpin; // Low
   }
 
+#if defined(__AVR__)
   // The high six bits of the data port are set as outputs;
   // Might make this configurable in the future, but not yet.
   DATADIR  = B11111100;
   DATAPORT = 0;
+#endif
 
+#if defined(ARDUINO_ARCH_SAMD)
+  outreg = &(PORT_IOBUS->Group[0].OUT.reg);
+  outsetreg = &(PORT_IOBUS->Group[0].OUTSET.reg);
+  outclrreg = &(PORT_IOBUS->Group[0].OUTCLR.reg);
+
+  // MEME FIXME - these are indexed to PORTA
+  pinMode(2, OUTPUT);
+  pinMode(3, OUTPUT);
+  pinMode(4, OUTPUT);
+  pinMode(5, OUTPUT);
+  pinMode(6, OUTPUT);
+  pinMode(7, OUTPUT);
+  r1_pinmask = digitalPinToBitMask(2);
+  r2_pinmask = digitalPinToBitMask(3);
+  g1_pinmask = digitalPinToBitMask(4);
+  g2_pinmask = digitalPinToBitMask(5);
+  b1_pinmask = digitalPinToBitMask(6);
+  b2_pinmask = digitalPinToBitMask(7);
+  data_pinmask = r1_pinmask | r2_pinmask | g1_pinmask | g2_pinmask | b1_pinmask | b2_pinmask;
+  clk_pinmask = digitalPinToBitMask(_sclk);
+#endif
+
+#if defined(__AVR__)
   // Set up Timer1 for interrupt:
   TCCR1A  = _BV(WGM11); // Mode 14 (fast PWM), OC1A off
   TCCR1B  = _BV(WGM13) | _BV(WGM12) | _BV(CS10); // Mode 14, no prescale
   ICR1    = 100;
   TIMSK1 |= _BV(TOIE1); // Enable Timer1 interrupt
   sei();                // Enable global interrupts
+#endif
 }
 
 // Original RGBmatrixPanel library used 3/3/3 color.  Later version used
@@ -217,9 +245,9 @@ uint16_t RGBmatrixPanel::Color888(uint8_t r, uint8_t g, uint8_t b) {
 uint16_t RGBmatrixPanel::Color888(
   uint8_t r, uint8_t g, uint8_t b, boolean gflag) {
   if(gflag) { // Gamma-corrected color?
-    r = pgm_read_byte(&gamma[r]); // Gamma correction table maps
-    g = pgm_read_byte(&gamma[g]); // 8-bit input to 4-bit output
-    b = pgm_read_byte(&gamma[b]);
+    r = pgm_read_byte(&gamma_table[r]); // Gamma correction table maps
+    g = pgm_read_byte(&gamma_table[g]); // 8-bit input to 4-bit output
+    b = pgm_read_byte(&gamma_table[b]);
     return ((uint16_t)r << 12) | ((uint16_t)(r & 0x8) << 8) | // 4/4/4->5/6/5
            ((uint16_t)g <<  7) | ((uint16_t)(g & 0xC) << 3) |
            (          b <<  1) | (           b        >> 3);
@@ -258,9 +286,9 @@ uint16_t RGBmatrixPanel::ColorHSV(
   // to allow shifts, and upgrade to int makes other conversions implicit.
   v1 = val + 1;
   if(gflag) { // Gamma-corrected color?
-    r = pgm_read_byte(&gamma[(r * v1) >> 8]); // Gamma correction table maps
-    g = pgm_read_byte(&gamma[(g * v1) >> 8]); // 8-bit input to 4-bit output
-    b = pgm_read_byte(&gamma[(b * v1) >> 8]);
+    r = pgm_read_byte(&gamma_table[(r * v1) >> 8]); // Gamma correction table maps
+    g = pgm_read_byte(&gamma_table[(g * v1) >> 8]); // 8-bit input to 4-bit output
+    b = pgm_read_byte(&gamma_table[(b * v1) >> 8]);
   } else { // linear (uncorrected) color
     r = (r * v1) >> 12; // 4-bit results
     g = (g * v1) >> 12;
@@ -402,10 +430,12 @@ void RGBmatrixPanel::dumpMatrix(void) {
 
 // -------------------- Interrupt handler stuff --------------------
 
+#if defined(__AVR__)
 ISR(TIMER1_OVF_vect, ISR_BLOCK) { // ISR_BLOCK important -- see notes later
   activePanel->updateDisplay();   // Call refresh func for active display
   TIFR1 |= TOV1;                  // Clear Timer1 interrupt flag
 }
+#endif
 
 // Two constants are used in timing each successive BCM interval.
 // These were found empirically, by checking the value of TCNT1 at
@@ -505,8 +535,10 @@ void RGBmatrixPanel::updateDisplay(void) {
   // A local register copy can speed some things up:
   ptr = (uint8_t *)buffptr;
 
+#if defined(__AVR__)
   ICR1      = duration; // Set interval for next interrupt
   TCNT1     = 0;        // Restart interrupt timer
+#endif
   *oeport  &= ~oepin;   // Re-enable output
   *latport &= ~latpin;  // Latch down
 
@@ -517,9 +549,12 @@ void RGBmatrixPanel::updateDisplay(void) {
   // somewhat rude trick that ONLY works because the interrupt
   // handler is set ISR_BLOCK, halting any other interrupts that
   // might otherwise also be twiddling the port at the same time
-  // (else this would clobber them).
+  // (else this would clobber them). only needed for AVR's where you
+  // cannot set one bit in a single instruction
+#if defined(__AVR__)
   tock = SCLKPORT;
   tick = tock | sclkpin;
+#endif
 
   if(plane > 0) { // 188 ticks from TCNT1=0 (above) to end of function
 
@@ -527,6 +562,7 @@ void RGBmatrixPanel::updateDisplay(void) {
     // The least 2 bits (used for plane 0 data) are presumed masked out
     // by the port direction bits.
 
+#if defined(__AVR__)
     // A tiny bit of inline assembly is used; compiler doesn't pick
     // up on opportunity for post-increment addressing mode.
     // 5 instruction ticks per 'pew' = 160 ticks total
@@ -540,7 +576,6 @@ void RGBmatrixPanel::updateDisplay(void) {
          [clk]  "I" (_SFR_IO_ADDR(SCLKPORT)), \
          [tick] "r" (tick),                   \
          [tock] "r" (tock));
-
     // Loop is unrolled for speed:
     pew pew pew pew pew pew pew pew
     pew pew pew pew pew pew pew pew
@@ -553,11 +588,36 @@ void RGBmatrixPanel::updateDisplay(void) {
     pew pew pew pew pew pew pew pew
     pew pew pew pew pew pew pew pew
       }
+#endif
+#if defined(ARDUINO_ARCH_SAMD)
+    for (int i=0; i<WIDTH; i++) {
+      byte b = *ptr++;
+
+      *outclrreg = data_pinmask; // turn all pins off!
+
+      if (b & 0x2)
+	*outsetreg = r1_pinmask; 
+      if (b & 0x3)
+	*outsetreg = r2_pinmask; 
+      if (b & 0x4)
+	*outsetreg = g1_pinmask; 
+      if (b & 0x5)
+	*outsetreg = g2_pinmask; 
+      if (b & 0x6)
+	*outsetreg = b1_pinmask; 
+      if (b & 0x7)
+	*outsetreg = b2_pinmask; 
+
+      // toggle clock
+      *outsetreg = clk_pinmask;
+      *outclrreg = clk_pinmask;
+    }
+#endif
 
     buffptr = ptr; //+= 32;
 
   } else { // 920 ticks from TCNT1=0 (above) to end of function
-
+#if defined(__AVR__)
     // Planes 1-3 (handled above) formatted their data "in place,"
     // their layout matching that out the output PORT register (where
     // 6 bits correspond to output data lines), maximizing throughput
@@ -575,6 +635,35 @@ void RGBmatrixPanel::updateDisplay(void) {
       SCLKPORT = tick; // Clock lo
       SCLKPORT = tock; // Clock hi
     } 
+#endif
+
+#if defined(ARDUINO_ARCH_SAMD)
+    for (int i=0; i<WIDTH; i++) {
+      byte b = 
+	( ptr[i]    << 6)         |
+        ((ptr[i+WIDTH] << 4) & 0x30) |
+        ((ptr[i+WIDTH*2] << 2) & 0x0C);
+
+      *outclrreg = data_pinmask; // turn all pins off!
+
+      if (b & 0x2)
+	*outsetreg = r1_pinmask; 
+      if (b & 0x3)
+	*outsetreg = r2_pinmask; 
+      if (b & 0x4)
+	*outsetreg = g1_pinmask; 
+      if (b & 0x5)
+	*outsetreg = g2_pinmask; 
+      if (b & 0x6)
+	*outsetreg = b1_pinmask; 
+      if (b & 0x7)
+	*outsetreg = b2_pinmask; 
+
+      // toggle clock
+      *outsetreg = clk_pinmask;
+      *outclrreg = clk_pinmask;
+    }
+#endif
   }
 }
 

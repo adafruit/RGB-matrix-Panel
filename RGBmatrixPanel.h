@@ -6,6 +6,13 @@
 #endif
 #include "Adafruit_GFX.h"
 
+#if defined(__AVR__)
+  typedef volatile uint8_t RwReg;
+#endif
+#if defined(__arm__)
+  typedef volatile uint32_t RwReg;
+#endif
+
 class RGBmatrixPanel : public Adafruit_GFX {
 
  public:
@@ -47,11 +54,16 @@ class RGBmatrixPanel : public Adafruit_GFX {
 	    uint8_t width);
 
   // PORT register pointers, pin bitmasks, pin numbers:
-  volatile uint8_t
-    *latport, *oeport, *addraport, *addrbport, *addrcport, *addrdport;
-  uint8_t
-    sclkpin, latpin, oepin, addrapin, addrbpin, addrcpin, addrdpin,
-    _sclk, _latch, _oe, _a, _b, _c, _d;
+  uint8_t _sclk, _latch, _oe, _a, _b, _c, _d;
+  
+  RwReg *latport, *oeport, *addraport, *addrbport, *addrcport, *addrdport;
+#if defined(ARDUINO_ARCH_SAMD)
+  uint32_t r1_pinmask, r2_pinmask, g1_pinmask, g2_pinmask, b1_pinmask, b2_pinmask, clk_pinmask, data_pinmask;
+  uint32_t sclkpin, latpin, oepin, addrapin, addrbpin, addrcpin, addrdpin;
+  RwReg *outreg, *outsetreg, *outclrreg;
+#elif defined(__AVR__)
+  uint8_t sclkpin, latpin, oepin, addrapin, addrbpin, addrcpin, addrdpin;
+#endif
 
   // Counters/pointers for interrupt handler:
   volatile uint8_t row, plane;
