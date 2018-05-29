@@ -70,6 +70,13 @@ BSD license, all text above must be included in any redistribution.
  #define DATAPORT PORTD
  #define DATADIR  DDRD
  #define SCLKPORT PORTB
+#elif defined(CORE_TEENSY)
+
+ void drawInterrupt();
+
+ #define DATAPORT PORTD
+ #define DATADIR  DDRD
+
 #else
  // Ports for "standard" boards (Arduino Uno, Duemilanove, etc.)
  #define DATAPORT PORTD
@@ -89,45 +96,75 @@ BSD license, all text above must be included in any redistribution.
 // are even an actual need.
 static RGBmatrixPanel *activePanel = NULL;
 
+#ifdef CORE_TEENSY
+// Code common to both the 16x32 and 32x32 constructors:
+void RGBmatrixPanel::init(uint8_t rows, boolean dbuf, uint8_t width) {
+
+	nRows = rows; // Number of multiplexed rows; actual height is 2X this
+
+	// Allocate and initialize matrix buffer:
+	int buffsize = width * nRows * 3, // x3 = 3 bytes holds 4 planes "packed"
+		allocsize = (dbuf == true) ? (buffsize * 2) : buffsize;
+	if (NULL == (matrixbuff[0] = (uint8_t *)malloc(allocsize))) return;
+	memset(matrixbuff[0], 0, allocsize);
+	// If not double-buffered, both buffers then point to the same address:
+	matrixbuff[1] = (dbuf == true) ? &matrixbuff[0][buffsize] : matrixbuff[0];
+
+	plane = nPlanes - 1;
+	row = nRows - 1;
+	swapflag = false;
+	backindex = 0;     // Array index of back buffer
+}
+
+// Constructor for 32x32 or 32x64 panel:
+RGBmatrixPanel::RGBmatrixPanel(boolean dbuf, uint8_t width) :
+	Adafruit_GFX(width, 32) {
+
+	init(16, dbuf, width);
+}
+#else
+
 // Code common to both the 16x32 and 32x32 constructors:
 void RGBmatrixPanel::init(uint8_t rows, uint8_t a, uint8_t b, uint8_t c,
-  uint8_t sclk, uint8_t latch, uint8_t oe, boolean dbuf, uint8_t width) {
+	uint8_t sclk, uint8_t latch, uint8_t oe, boolean dbuf, uint8_t width) {
 
-  nRows = rows; // Number of multiplexed rows; actual height is 2X this
+	nRows = rows; // Number of multiplexed rows; actual height is 2X this
 
-  // Allocate and initialize matrix buffer:
-  int buffsize  = width * nRows * 3, // x3 = 3 bytes holds 4 planes "packed"
-      allocsize = (dbuf == true) ? (buffsize * 2) : buffsize;
-  if(NULL == (matrixbuff[0] = (uint8_t *)malloc(allocsize))) return;
-  memset(matrixbuff[0], 0, allocsize);
-  // If not double-buffered, both buffers then point to the same address:
-  matrixbuff[1] = (dbuf == true) ? &matrixbuff[0][buffsize] : matrixbuff[0];
+	// Allocate and initialize matrix buffer:
+	int buffsize = width * nRows * 3, // x3 = 3 bytes holds 4 planes "packed"
+		allocsize = (dbuf == true) ? (buffsize * 2) : buffsize;
+	if (NULL == (matrixbuff[0] = (uint8_t *)malloc(allocsize))) return;
+	memset(matrixbuff[0], 0, allocsize);
+	// If not double-buffered, both buffers then point to the same address:
+	matrixbuff[1] = (dbuf == true) ? &matrixbuff[0][buffsize] : matrixbuff[0];
 
-  // Save pin numbers for use by begin() method later.
-  _a     = a;
-  _b     = b;
-  _c     = c;
-  _sclk  = sclk;
-  _latch = latch;
-  _oe    = oe;
+	// Save pin numbers for use by begin() method later.
+	_a = a;
+	_b = b;
+	_c = c;
+	_sclk = sclk;
+	_latch = latch;
+	_oe = oe;
 
-  // Look up port registers and pin masks ahead of time,
-  // avoids many slow digitalWrite() calls later.
-  sclkpin   = digitalPinToBitMask(sclk);
-  latport   = portOutputRegister(digitalPinToPort(latch));
-  latpin    = digitalPinToBitMask(latch);
-  oeport    = portOutputRegister(digitalPinToPort(oe));
-  oepin     = digitalPinToBitMask(oe);
-  addraport = portOutputRegister(digitalPinToPort(a));
-  addrapin  = digitalPinToBitMask(a);
-  addrbport = portOutputRegister(digitalPinToPort(b));
-  addrbpin  = digitalPinToBitMask(b);
-  addrcport = portOutputRegister(digitalPinToPort(c));
-  addrcpin  = digitalPinToBitMask(c); 
-  plane     = nPlanes - 1;
-  row       = nRows   - 1;
-  swapflag  = false;
-  backindex = 0;     // Array index of back buffer
+	// Look up port registers and pin masks ahead of time,
+	// avoids many slow digitalWrite() calls later.
+
+	sclkpin = digitalPinToBitMask(sclk);
+	latport = portOutputRegister(digitalPinToPort(latch));
+	latpin = digitalPinToBitMask(latch);
+	oeport = portOutputRegister(digitalPinToPort(oe));
+	oepin = digitalPinToBitMask(oe);
+	addraport = portOutputRegister(digitalPinToPort(a));
+	addrapin = digitalPinToBitMask(a);
+	addrbport = portOutputRegister(digitalPinToPort(b));
+	addrbpin = digitalPinToBitMask(b);
+	addrcport = portOutputRegister(digitalPinToPort(c));
+	addrcpin = digitalPinToBitMask(c);
+
+	plane = nPlanes - 1;
+	row = nRows - 1;
+	swapflag = false;
+	backindex = 0;     // Array index of back buffer
 }
 
 // Constructor for 16x32 panel:
@@ -149,9 +186,11 @@ RGBmatrixPanel::RGBmatrixPanel(
 
   // Init a few extra 32x32-specific elements:
   _d        = d;
+
   addrdport = portOutputRegister(digitalPinToPort(d));
   addrdpin  = digitalPinToBitMask(d);
 }
+#endif
 
 void RGBmatrixPanel::begin(void) {
 
@@ -160,6 +199,23 @@ void RGBmatrixPanel::begin(void) {
   activePanel = this;                      // For interrupt hander
 
   // Enable all comm & address pins as outputs, set default states:
+#ifdef CORE_TEENSY
+  pinMode(CLK, OUTPUT); digitalWriteFast(CLK, LOW);
+  pinMode(LAT, OUTPUT); digitalWriteFast(LAT, LOW);
+  pinMode(OE, OUTPUT); digitalWriteFast(OE, HIGH);
+  pinMode(A, OUTPUT); digitalWriteFast(A, LOW);
+  pinMode(B, OUTPUT); digitalWriteFast(B, LOW);
+  pinMode(C, OUTPUT); digitalWriteFast(C, LOW);
+  if (nRows > 8) {
+	  pinMode(D, OUTPUT); digitalWriteFast(D, LOW);
+  }
+
+  DATADIR = B11111100;
+  DATAPORT = 0;
+
+  drawTimer.begin(drawInterrupt, 150);
+
+#else
   pinMode(_sclk , OUTPUT); SCLKPORT   &= ~sclkpin;  // Low
   pinMode(_latch, OUTPUT); *latport   &= ~latpin;   // Low
   pinMode(_oe   , OUTPUT); *oeport    |= oepin;     // High (disable output)
@@ -180,6 +236,7 @@ void RGBmatrixPanel::begin(void) {
   TCCR1B  = _BV(WGM13) | _BV(WGM12) | _BV(CS10); // Mode 14, no prescale
   ICR1    = 100;
   TIMSK1 |= _BV(TOIE1); // Enable Timer1 interrupt
+#endif
   sei();                // Enable global interrupts
 }
 
@@ -217,9 +274,9 @@ uint16_t RGBmatrixPanel::Color888(uint8_t r, uint8_t g, uint8_t b) {
 uint16_t RGBmatrixPanel::Color888(
   uint8_t r, uint8_t g, uint8_t b, boolean gflag) {
   if(gflag) { // Gamma-corrected color?
-    r = pgm_read_byte(&gamma[r]); // Gamma correction table maps
-    g = pgm_read_byte(&gamma[g]); // 8-bit input to 4-bit output
-    b = pgm_read_byte(&gamma[b]);
+    r = pgm_read_byte(&gammaVal[r]); // Gamma correction table maps
+    g = pgm_read_byte(&gammaVal[g]); // 8-bit input to 4-bit output
+    b = pgm_read_byte(&gammaVal[b]);
     return ((uint16_t)r << 12) | ((uint16_t)(r & 0x8) << 8) | // 4/4/4->5/6/5
            ((uint16_t)g <<  7) | ((uint16_t)(g & 0xC) << 3) |
            (          b <<  1) | (           b        >> 3);
@@ -258,9 +315,9 @@ uint16_t RGBmatrixPanel::ColorHSV(
   // to allow shifts, and upgrade to int makes other conversions implicit.
   v1 = val + 1;
   if(gflag) { // Gamma-corrected color?
-    r = pgm_read_byte(&gamma[(r * v1) >> 8]); // Gamma correction table maps
-    g = pgm_read_byte(&gamma[(g * v1) >> 8]); // 8-bit input to 4-bit output
-    b = pgm_read_byte(&gamma[(b * v1) >> 8]);
+    r = pgm_read_byte(&gammaVal[(r * v1) >> 8]); // Gamma correction table maps
+    g = pgm_read_byte(&gammaVal[(g * v1) >> 8]); // 8-bit input to 4-bit output
+    b = pgm_read_byte(&gammaVal[(b * v1) >> 8]);
   } else { // linear (uncorrected) color
     r = (r * v1) >> 12; // 4-bit results
     g = (g * v1) >> 12;
@@ -402,10 +459,18 @@ void RGBmatrixPanel::dumpMatrix(void) {
 
 // -------------------- Interrupt handler stuff --------------------
 
+#ifdef CORE_TEENSY
+void drawInterrupt()
+{
+	activePanel->updateDisplay();
+	//drawTimer.end();
+}
+#else
 ISR(TIMER1_OVF_vect, ISR_BLOCK) { // ISR_BLOCK important -- see notes later
   activePanel->updateDisplay();   // Call refresh func for active display
   TIFR1 |= TOV1;                  // Clear Timer1 interrupt flag
 }
+#endif
 
 // Two constants are used in timing each successive BCM interval.
 // These were found empirically, by checking the value of TCNT1 at
@@ -452,6 +517,108 @@ ISR(TIMER1_OVF_vect, ISR_BLOCK) { // ISR_BLOCK important -- see notes later
 // counter variables change between past/present/future tense in mid-
 // function...hopefully tenses are sufficiently commented.
 
+#ifdef CORE_TEENSY
+void RGBmatrixPanel::updateDisplay(void) {
+	uint8_t  i, *ptr;
+
+	digitalWriteFast(OE, HIGH); // Disable LED output during row/plane switchover
+	digitalWriteFast(LAT, HIGH); // Latch data loaded during *prior* interrupt
+
+	// Borrowing a technique here from Ray's Logic:
+	// www.rayslogic.com/propeller/Programming/AdafruitRGB/AdafruitRGB.htm
+	// This code cycles through all four planes for each scanline before
+	// advancing to the next line.  While it might seem beneficial to
+	// advance lines every time and interleave the planes to reduce
+	// vertical scanning artifacts, in practice with this panel it causes
+	// a green 'ghosting' effect on black pixels, a much worse artifact.
+
+	if (++plane >= nPlanes) {      // Advance plane counter.  Maxed out?
+		plane = 0;                  // Yes, reset to plane 0, and
+		if (++row >= nRows) {        // advance row counter.  Maxed out?
+			row = 0;              // Yes, reset row counter, then...
+			if (swapflag == true) {    // Swap front/back buffers if requested
+				backindex = 1 - backindex;
+				swapflag = false;
+			}
+			buffptr = matrixbuff[1 - backindex]; // Reset into front buffer
+		}
+	}
+	else if (plane == 1) {
+		// Plane 0 was loaded on prior interrupt invocation and is about to
+		// latch now, so update the row address lines before we do that:
+		if (row & 0x1)  digitalWriteFast(A, HIGH);
+		else            digitalWriteFast(A, LOW);
+		if (row & 0x2)  digitalWriteFast(B, HIGH);
+		else            digitalWriteFast(B, LOW);
+		if (row & 0x4)  digitalWriteFast(C, HIGH);
+		else            digitalWriteFast(C, LOW);
+		if (nRows > 8) {
+			if (row & 0x8) digitalWriteFast(D, HIGH);
+			else           digitalWriteFast(D, LOW);
+		}
+	}
+
+	// buffptr, being 'volatile' type, doesn't take well to optimization.
+	// A local register copy can speed some things up:
+	ptr = (uint8_t *)buffptr;
+
+	//drawTimer.begin(drawInterrupt, 10000);
+	digitalWriteFast(OE, LOW); // Re-enable output
+	digitalWriteFast(LAT, LOW); // Latch down
+
+	// Record current state of SCLKPORT register, as well as a second
+	// copy with the clock bit set.  This makes the innnermost data-
+	// pushing loops faster, as they can just set the PORT state and
+	// not have to load/modify/store bits every single time.  It's a
+	// somewhat rude trick that ONLY works because the interrupt
+	// handler is set ISR_BLOCK, halting any other interrupts that
+	// might otherwise also be twiddling the port at the same time
+	// (else this would clobber them).
+
+	if (plane > 0) { // 188 ticks from TCNT1=0 (above) to end of function
+
+		// Planes 1-3 copy bytes directly from RAM to PORT without unpacking.
+		// The least 2 bits (used for plane 0 data) are presumed masked out
+		// by the port direction bits.
+
+		for (i = 0; i < WIDTH; i++)
+		{
+			DATAPORT = ptr[i];
+			//SCLKPORT = tick; // Clock lo
+			digitalWriteFast(CLK, HIGH);
+			//SCLKPORT = tock; // Clock hip
+			digitalWriteFast(CLK, LOW);
+		}
+		ptr = &(ptr[WIDTH]);
+
+		buffptr = ptr; //+= 32;
+
+	}
+	else { // 920 ticks from TCNT1=0 (above) to end of function
+
+		// Planes 1-3 (handled above) formatted their data "in place,"
+		// their layout matching that out the output PORT register (where
+		// 6 bits correspond to output data lines), maximizing throughput
+		// as no conversion or unpacking is needed.  Plane 0 then takes up
+		// the slack, with all its data packed into the 2 least bits not
+		// used by the other planes.  This works because the unpacking and
+		// output for plane 0 is handled while plane 3 is being displayed...
+		// because binary coded modulation is used (not PWM), that plane
+		// has the longest display interval, so the extra work fits.
+		for (i = 0; i<WIDTH; i++) {
+			DATAPORT =
+				(ptr[i] << 6) |
+				((ptr[i + WIDTH] << 4) & 0x30) |
+				((ptr[i + WIDTH * 2] << 2) & 0x0C);
+
+			//SCLKPORT = tick; // Clock lo
+			digitalWriteFast(CLK, HIGH);
+			//SCLKPORT = tock; // Clock hip
+			digitalWriteFast(CLK, LOW);
+		}
+	}
+}
+#else
 void RGBmatrixPanel::updateDisplay(void) {
   uint8_t  i, tick, tock, *ptr;
   uint16_t t, duration;
@@ -554,7 +721,7 @@ void RGBmatrixPanel::updateDisplay(void) {
     pew pew pew pew pew pew pew pew
       }
 
-    buffptr = ptr; //+= 32;
+	buffptr = ptr; //+= 32;
 
   } else { // 920 ticks from TCNT1=0 (above) to end of function
 
@@ -577,4 +744,4 @@ void RGBmatrixPanel::updateDisplay(void) {
     } 
   }
 }
-
+#endif
