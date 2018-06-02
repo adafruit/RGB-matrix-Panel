@@ -61,6 +61,7 @@ class RGBmatrixPanel : public Adafruit_GFX {
   uint32_t r1_pinmask, r2_pinmask, g1_pinmask, g2_pinmask, b1_pinmask, b2_pinmask, clk_pinmask, data_pinmask;
   uint32_t sclkpin, latpin, oepin, addrapin, addrbpin, addrcpin, addrdpin;
   RwReg *outreg, *outsetreg, *outclrreg;
+  uint32_t expand[256];
 #elif defined(__AVR__)
   uint8_t sclkpin, latpin, oepin, addrapin, addrbpin, addrcpin, addrdpin;
 #endif

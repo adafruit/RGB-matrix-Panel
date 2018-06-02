@@ -155,6 +155,12 @@ RGBmatrixPanel::RGBmatrixPanel(
   addrdpin  = digitalPinToBitMask(d);
 }
 
+#if defined(ARDUINO_ARCH_SAMD)
+#define TIMER       TC4
+#define IRQN        TC4_IRQn
+#define IRQ_HANDLER TC4_Handler
+#endif
+
 void RGBmatrixPanel::begin(void) {
 
   backindex   = 0;                         // Back buffer
@@ -199,6 +205,15 @@ void RGBmatrixPanel::begin(void) {
   b2_pinmask = digitalPinToBitMask(7);
   data_pinmask = r1_pinmask | r2_pinmask | g1_pinmask | g2_pinmask | b1_pinmask | b2_pinmask;
   clk_pinmask = digitalPinToBitMask(_sclk);
+  for(int i=0; i<256; i++) {
+    expand[i] = 0;
+    if(i & 0x04) expand[i] |= r1_pinmask;
+    if(i & 0x08) expand[i] |= r2_pinmask;
+    if(i & 0x10) expand[i] |= g1_pinmask;
+    if(i & 0x20) expand[i] |= g2_pinmask;
+    if(i & 0x40) expand[i] |= b1_pinmask;
+    if(i & 0x80) expand[i] |= b2_pinmask;
+  }
 #endif
 
 #if defined(__AVR__)
@@ -208,6 +223,41 @@ void RGBmatrixPanel::begin(void) {
   ICR1    = 100;
   TIMSK1 |= _BV(TOIE1); // Enable Timer1 interrupt
   sei();                // Enable global interrupts
+#endif
+
+#if defined(ARDUINO_ARCH_SAMD)
+  // Enable GCLK for TC4 and COUNTER (timer counter input clock)
+  GCLK->CLKCTRL.reg = (uint16_t)(GCLK_CLKCTRL_CLKEN |
+    GCLK_CLKCTRL_GEN_GCLK0 | GCLK_CLKCTRL_ID(GCM_TC4_TC5));
+  while(GCLK->STATUS.bit.SYNCBUSY == 1);
+
+  // Counter must first be disabled to configure it
+  TIMER->COUNT16.CTRLA.reg &= ~TC_CTRLA_ENABLE;
+  while(TIMER->COUNT16.STATUS.bit.SYNCBUSY);
+
+  TIMER->COUNT16.CTRLA.reg =  // Configure timer counter
+    TC_CTRLA_PRESCALER_DIV1 | // 1:1 Prescale
+    TC_CTRLA_WAVEGEN_MFRQ   | // Match frequency generation mode (MFRQ)
+    TC_CTRLA_MODE_COUNT16;    // 16-bit counter mode
+  while(TIMER->COUNT16.STATUS.bit.SYNCBUSY);
+
+//  TIMER->COUNT16.CTRLBCLR.reg = TCC_CTRLBCLR_DIR; // Count up
+  TIMER->COUNT16.CTRLBSET.reg = TCC_CTRLBCLR_DIR; // Count DOWN
+  while(TIMER->COUNT16.STATUS.bit.SYNCBUSY);
+
+  TIMER->COUNT16.CC[0].reg = 10000; // Compare value for channel 0
+  while(TIMER->COUNT16.STATUS.bit.SYNCBUSY);
+
+  TIMER->COUNT16.INTENSET.reg = TC_INTENSET_OVF; // Enable overflow interrupt
+
+  NVIC_DisableIRQ(IRQN);
+  NVIC_ClearPendingIRQ(IRQN);
+  NVIC_SetPriority(IRQN, 0); // Top priority
+  NVIC_EnableIRQ(IRQN);
+
+  // Enable TCx
+  TIMER->COUNT16.CTRLA.reg |= TC_CTRLA_ENABLE;
+  while(TIMER->COUNT16.STATUS.bit.SYNCBUSY);
 #endif
 }
 
@@ -437,6 +487,13 @@ ISR(TIMER1_OVF_vect, ISR_BLOCK) { // ISR_BLOCK important -- see notes later
 }
 #endif
 
+#if defined(ARDUINO_ARCH_SAMD)
+void IRQ_HANDLER() {
+  activePanel->updateDisplay();   // Call refresh func for active display
+  TIMER->COUNT16.INTFLAG.reg = TC_INTFLAG_OVF; // Clear overflow flag
+}
+#endif
+
 // Two constants are used in timing each successive BCM interval.
 // These were found empirically, by checking the value of TCNT1 at
 // certain positions in the interrupt code.
@@ -449,8 +506,14 @@ ISR(TIMER1_OVF_vect, ISR_BLOCK) { // ISR_BLOCK important -- see notes later
 // issuing loop (not actually a 'loop' because it's unrolled, but eh).
 // Both numbers are rounded up slightly to allow a little wiggle room
 // should different compilers produce slightly different results.
-#define CALLOVERHEAD 60   // Actual value measured = 56
-#define LOOPTIME     200  // Actual value measured = 188
+#if defined(__AVR__)
+  #define CALLOVERHEAD 60   // Actual value measured = 56
+  #define LOOPTIME     200  // Actual value measured = 188
+#endif
+#if defined(ARDUINO_ARCH_SAMD)
+  #define CALLOVERHEAD 60  // Actual = 58
+  #define LOOPTIME     950 // Actual = 914
+#endif
 // The "on" time for bitplane 0 (with the shortest BCM interval) can
 // then be estimated as LOOPTIME + CALLOVERHEAD * 2.  Each successive
 // bitplane then doubles the prior amount of time.  We can then
@@ -539,6 +602,12 @@ void RGBmatrixPanel::updateDisplay(void) {
   ICR1      = duration; // Set interval for next interrupt
   TCNT1     = 0;        // Restart interrupt timer
 #endif
+#if defined(ARDUINO_ARCH_SAMD)
+  TIMER->COUNT16.CC[0].reg = duration;
+  while(TIMER->COUNT16.STATUS.bit.SYNCBUSY);
+  TIMER->COUNT16.COUNT.reg = duration;
+  while(TIMER->COUNT16.STATUS.bit.SYNCBUSY);
+#endif
   *oeport  &= ~oepin;   // Re-enable output
   *latport &= ~latpin;  // Latch down
 
@@ -590,28 +659,13 @@ void RGBmatrixPanel::updateDisplay(void) {
       }
 #endif
 #if defined(ARDUINO_ARCH_SAMD)
+    uint32_t bothmask = data_pinmask | clk_pinmask;
     for (int i=0; i<WIDTH; i++) {
-      byte b = *ptr++;
-
-      *outclrreg = data_pinmask; // turn all pins off!
-
-      if (b & 0x2)
-	*outsetreg = r1_pinmask; 
-      if (b & 0x3)
-	*outsetreg = r2_pinmask; 
-      if (b & 0x4)
-	*outsetreg = g1_pinmask; 
-      if (b & 0x5)
-	*outsetreg = g2_pinmask; 
-      if (b & 0x6)
-	*outsetreg = b1_pinmask; 
-      if (b & 0x7)
-	*outsetreg = b2_pinmask; 
-
-      // toggle clock
-      *outsetreg = clk_pinmask;
-      *outclrreg = clk_pinmask;
+      *outclrreg = bothmask;       // Clear all data and clock bits together
+      *outsetreg = expand[*ptr++]; // Set new data bits
+      *outsetreg = clk_pinmask;    // Set clock high
     }
+    *outclrreg = clk_pinmask;      // Set clock low
 #endif
 
     buffptr = ptr; //+= 32;
@@ -638,31 +692,18 @@ void RGBmatrixPanel::updateDisplay(void) {
 #endif
 
 #if defined(ARDUINO_ARCH_SAMD)
+    uint32_t bothmask = data_pinmask | clk_pinmask;
     for (int i=0; i<WIDTH; i++) {
       byte b = 
-	( ptr[i]    << 6)         |
-        ((ptr[i+WIDTH] << 4) & 0x30) |
+	( ptr[i]         << 6)         |
+        ((ptr[i+WIDTH]   << 4) & 0x30) |
         ((ptr[i+WIDTH*2] << 2) & 0x0C);
 
-      *outclrreg = data_pinmask; // turn all pins off!
-
-      if (b & 0x2)
-	*outsetreg = r1_pinmask; 
-      if (b & 0x3)
-	*outsetreg = r2_pinmask; 
-      if (b & 0x4)
-	*outsetreg = g1_pinmask; 
-      if (b & 0x5)
-	*outsetreg = g2_pinmask; 
-      if (b & 0x6)
-	*outsetreg = b1_pinmask; 
-      if (b & 0x7)
-	*outsetreg = b2_pinmask; 
-
-      // toggle clock
-      *outsetreg = clk_pinmask;
-      *outclrreg = clk_pinmask;
+      *outclrreg = bothmask;    // Clear all data and clock bits together
+      *outsetreg = expand[b];   // Set new data bits
+      *outsetreg = clk_pinmask; // Set clock high
     }
+    *outclrreg = clk_pinmask;   // Set clock low
 #endif
   }
 }
