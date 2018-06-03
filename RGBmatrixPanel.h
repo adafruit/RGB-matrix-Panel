@@ -20,7 +20,7 @@ class RGBmatrixPanel : public Adafruit_GFX {
   RGBmatrixPanel(uint8_t a, uint8_t b, uint8_t c,
     uint8_t clk, uint8_t lat, uint8_t oe, boolean dbuf
 #if defined(ARDUINO_ARCH_SAMD)
-    ,uint8_t *rgbpins=NULL
+    ,uint8_t *pinlist=NULL
 #endif
     );
 
@@ -28,7 +28,7 @@ class RGBmatrixPanel : public Adafruit_GFX {
   RGBmatrixPanel(uint8_t a, uint8_t b, uint8_t c, uint8_t d,
     uint8_t clk, uint8_t lat, uint8_t oe, boolean dbuf, uint8_t width=32
 #if defined(ARDUINO_ARCH_SAMD)
-    ,uint8_t *rgbpins=NULL
+    ,uint8_t *pinlist=NULL
 #endif
     );
 
@@ -72,6 +72,7 @@ class RGBmatrixPanel : public Adafruit_GFX {
                     *addraport, *addrbport, *addrcport, *addrdport;
 
 #if defined(ARDUINO_ARCH_SAMD)
+  uint8_t  rgbpins[6];                      // Pin numbers for 2x R,G,B bits
   volatile PortType *outsetreg, *outclrreg; // PORT bit set, clear registers
   PortType           rgbclkmask;            // Mask of all RGB bits + CLK
   PortType           expand[256];           // 6-to-32 bit converter table

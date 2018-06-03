@@ -91,17 +91,23 @@ BSD license, all text above must be included in any redistribution.
 // are even an actual need.
 static RGBmatrixPanel *activePanel = NULL;
 
-#if defined(ARDUINO_ARCH_SAMD)
-static const uint8_t defaultrgbpins[] = { 2,3,4,5,6,7 };
-#endif
-
 // Code common to both the 16x32 and 32x32 constructors:
 void RGBmatrixPanel::init(uint8_t rows, uint8_t a, uint8_t b, uint8_t c,
   uint8_t clk, uint8_t lat, uint8_t oe, boolean dbuf, uint8_t width
 #if defined(ARDUINO_ARCH_SAMD)
-  ,uint8_t *rgbpins
+  ,uint8_t *pinlist
 #endif
   ) {
+#if defined(ARDUINO_ARCH_SAMD)
+  // R1, G1, B1, R2, G2, B2 pins
+  static const uint8_t defaultrgbpins[] = { 2,3,4,5,6,7 };
+  memcpy(rgbpins, pinlist ? pinlist : defaultrgbpins, sizeof rgbpins);
+  // All six RGB pins MUST be on the same PORT # as CLK
+  int clkportnum = g_APinDescription[clk].ulPort;
+  for(uint8_t i=0; i<6; i++) {
+    if(g_APinDescription[rgbpins[i]].ulPort != clkportnum) return;
+  }
+#endif
 
   nRows = rows; // Number of multiplexed rows; actual height is 2X this
 
@@ -145,12 +151,12 @@ RGBmatrixPanel::RGBmatrixPanel(
   uint8_t a, uint8_t b, uint8_t c,
   uint8_t clk, uint8_t lat, uint8_t oe, boolean dbuf
 #if defined(ARDUINO_ARCH_SAMD)
-    ,uint8_t *rgbpins
+    ,uint8_t *pinlist
 #endif
   ) : Adafruit_GFX(32, 16) {
   init(8, a, b, c, clk, lat, oe, dbuf, 32
 #if defined(ARDUINO_ARCH_SAMD)
-    ,rgbpins
+    ,pinlist
 #endif
   );
 }
@@ -160,13 +166,13 @@ RGBmatrixPanel::RGBmatrixPanel(
   uint8_t a, uint8_t b, uint8_t c, uint8_t d,
   uint8_t clk, uint8_t lat, uint8_t oe, boolean dbuf, uint8_t width
 #if defined(ARDUINO_ARCH_SAMD)
-    ,uint8_t *rgbpins
+    ,uint8_t *pinlist
 #endif
   ) : Adafruit_GFX(width, 32) {
 
   init(16, a, b, c, clk, lat, oe, dbuf, width
 #if defined(ARDUINO_ARCH_SAMD)
-    ,rgbpins
+    ,pinlist
 #endif
   );
 
@@ -200,40 +206,34 @@ void RGBmatrixPanel::begin(void) {
   }
 
 #if defined(__AVR__)
+
   // The high six bits of the data port are set as outputs;
   // Might make this configurable in the future, but not yet.
   DATADIR  = B11111100;
   DATAPORT = 0;
-#endif
 
-#if defined(ARDUINO_ARCH_SAMD)
-  outsetreg = &(PORT_IOBUS->Group[0].OUTSET.reg);
-  outclrreg = &(PORT_IOBUS->Group[0].OUTCLR.reg);
+#elif defined(ARDUINO_ARCH_SAMD)
 
-  // MEME FIXME - these are indexed to PORTA
-  pinMode(2, OUTPUT);
-  pinMode(3, OUTPUT);
-  pinMode(4, OUTPUT);
-  pinMode(5, OUTPUT);
-  pinMode(6, OUTPUT);
-  pinMode(7, OUTPUT);
-  RwReg r1mask, r2mask, g1mask, g2mask, b1mask, b2mask;
-  r1mask     = digitalPinToBitMask(2);
-  r2mask     = digitalPinToBitMask(3);
-  g1mask     = digitalPinToBitMask(4);
-  g2mask     = digitalPinToBitMask(5);
-  b1mask     = digitalPinToBitMask(6);
-  b2mask     = digitalPinToBitMask(7);
-  clkmask    = digitalPinToBitMask(_clk);
-  rgbclkmask = r1mask | r2mask | g1mask | g2mask | b1mask | b2mask | clkmask;
+  // Semi-configurable RGB bits; must be on same PORT as CLK
+  int clkportnum = g_APinDescription[_clk].ulPort;
+  outsetreg = &(PORT_IOBUS->Group[clkportnum].OUTSET.reg);
+  outclrreg = &(PORT_IOBUS->Group[clkportnum].OUTCLR.reg);
+
+  PortType rgbmask[6];
+  clkmask = rgbclkmask = digitalPinToBitMask(_clk);
+  for(uint8_t i=0; i<6; i++) {
+    pinMode(rgbpins[i], OUTPUT);
+    rgbmask[i]  = digitalPinToBitMask(rgbpins[i]); // Pin bit mask
+    rgbclkmask |= rgbmask[i];                      // Add to RGB+CLK bit mask
+  }
   for(int i=0; i<256; i++) {
     expand[i] = 0;
-    if(i & 0x04) expand[i] |= r1mask;
-    if(i & 0x08) expand[i] |= r2mask;
-    if(i & 0x10) expand[i] |= g1mask;
-    if(i & 0x20) expand[i] |= g2mask;
-    if(i & 0x40) expand[i] |= b1mask;
-    if(i & 0x80) expand[i] |= b2mask;
+    if(i & 0x04) expand[i] |= rgbmask[0];
+    if(i & 0x08) expand[i] |= rgbmask[1];
+    if(i & 0x10) expand[i] |= rgbmask[2];
+    if(i & 0x20) expand[i] |= rgbmask[3];
+    if(i & 0x40) expand[i] |= rgbmask[4];
+    if(i & 0x80) expand[i] |= rgbmask[5];
   }
 #endif
 
