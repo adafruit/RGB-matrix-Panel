@@ -7,10 +7,9 @@
 #include "Adafruit_GFX.h"
 
 #if defined(__AVR__)
-  typedef volatile uint8_t RwReg;
-#endif
-#if defined(__arm__)
-  typedef volatile uint32_t RwReg;
+  typedef uint8_t  PortType;
+#elif defined(__arm__)
+  typedef uint32_t PortType; // Formerly 'RwReg' but interfered w/CMCIS header
 #endif
 
 class RGBmatrixPanel : public Adafruit_GFX {
@@ -19,11 +18,19 @@ class RGBmatrixPanel : public Adafruit_GFX {
 
   // Constructor for 16x32 panel:
   RGBmatrixPanel(uint8_t a, uint8_t b, uint8_t c,
-    uint8_t sclk, uint8_t latch, uint8_t oe, boolean dbuf);
+    uint8_t clk, uint8_t lat, uint8_t oe, boolean dbuf
+#if defined(ARDUINO_ARCH_SAMD)
+    ,uint8_t *rgbpins=NULL
+#endif
+    );
 
   // Constructor for 32x32 panel (adds 'd' pin):
   RGBmatrixPanel(uint8_t a, uint8_t b, uint8_t c, uint8_t d,
-    uint8_t sclk, uint8_t latch, uint8_t oe, boolean dbuf, uint8_t width=32);
+    uint8_t clk, uint8_t lat, uint8_t oe, boolean dbuf, uint8_t width=32
+#if defined(ARDUINO_ARCH_SAMD)
+    ,uint8_t *rgbpins=NULL
+#endif
+    );
 
   void
     begin(void),
@@ -50,20 +57,24 @@ class RGBmatrixPanel : public Adafruit_GFX {
 
   // Init/alloc code common to both constructors:
   void init(uint8_t rows, uint8_t a, uint8_t b, uint8_t c,
-	    uint8_t sclk, uint8_t latch, uint8_t oe, boolean dbuf, 
-	    uint8_t width);
-
-  // PORT register pointers, pin bitmasks, pin numbers:
-  uint8_t _sclk, _latch, _oe, _a, _b, _c, _d;
-  
-  RwReg *latport, *oeport, *addraport, *addrbport, *addrcport, *addrdport;
+	    uint8_t clk, uint8_t lat, uint8_t oe, boolean dbuf, 
+	    uint8_t width
 #if defined(ARDUINO_ARCH_SAMD)
-  uint32_t r1_pinmask, r2_pinmask, g1_pinmask, g2_pinmask, b1_pinmask, b2_pinmask, clk_pinmask, data_pinmask;
-  uint32_t sclkpin, latpin, oepin, addrapin, addrbpin, addrcpin, addrdpin;
-  RwReg *outreg, *outsetreg, *outclrreg;
-  uint32_t expand[256];
-#elif defined(__AVR__)
-  uint8_t sclkpin, latpin, oepin, addrapin, addrbpin, addrcpin, addrdpin;
+            ,uint8_t *rgbpins
+#endif
+  );
+
+  uint8_t  _clk, _lat, _oe, _a, _b, _c, _d; // Pin numbers
+  PortType clkmask, latmask, oemask,        // Pin bitmasks
+           addramask, addrbmask, addrcmask, addrdmask;
+  // PORT register pointers (CLKPORT is hardcoded on AVR)
+  volatile PortType *latport, *oeport,
+                    *addraport, *addrbport, *addrcport, *addrdport;
+
+#if defined(ARDUINO_ARCH_SAMD)
+  volatile PortType *outsetreg, *outclrreg; // PORT bit set, clear registers
+  PortType           rgbclkmask;            // Mask of all RGB bits + CLK
+  PortType           expand[256];           // 6-to-32 bit converter table
 #endif
 
   // Counters/pointers for interrupt handler:
