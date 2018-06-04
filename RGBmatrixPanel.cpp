@@ -183,9 +183,10 @@ RGBmatrixPanel::RGBmatrixPanel(
 }
 
 #if defined(ARDUINO_ARCH_SAMD)
-#define TIMER       TC4
-#define IRQN        TC4_IRQn
-#define IRQ_HANDLER TC4_Handler
+#define TIMER         TC4
+#define IRQN          TC4_IRQn
+#define IRQ_HANDLER   TC4_Handler
+#define TIMER_GCLK_ID TC4_GCLK_ID
 #endif
 
 void RGBmatrixPanel::begin(void) {
@@ -216,8 +217,13 @@ void RGBmatrixPanel::begin(void) {
 
   // Semi-configurable RGB bits; must be on same PORT as CLK
   int clkportnum = g_APinDescription[_clk].ulPort;
+#ifdef __SAMD51__ // No IOBUS on SAMD51
+  outsetreg = &(PORT->Group[clkportnum].OUTSET.reg);
+  outclrreg = &(PORT->Group[clkportnum].OUTCLR.reg);
+#else
   outsetreg = &(PORT_IOBUS->Group[clkportnum].OUTSET.reg);
   outclrreg = &(PORT_IOBUS->Group[clkportnum].OUTCLR.reg);
+#endif
 
   PortType rgbmask[6];
   clkmask = rgbclkmask = digitalPinToBitMask(_clk);
@@ -247,6 +253,54 @@ void RGBmatrixPanel::begin(void) {
 #endif
 
 #if defined(ARDUINO_ARCH_SAMD)
+#ifdef __SAMD51__
+  // Set up generic clock gen 2 as source for TC4
+  // Datasheet recommends setting GENCTRL register in a single write,
+  // so a temp value is used here to more easily construct a value.
+  GCLK_GENCTRL_Type genctrl;
+  genctrl.bit.SRC      = GCLK_GENCTRL_SRC_DFLL_Val; // 48 MHz source
+  genctrl.bit.GENEN    = 1; // Enable
+  genctrl.bit.OE       = 1;
+  genctrl.bit.DIVSEL   = 0; // Do not divide clock source
+  genctrl.bit.DIV      = 0;
+  GCLK->GENCTRL[2].reg = genctrl.reg;
+  while(GCLK->SYNCBUSY.bit.GENCTRL1 == 1);
+
+  GCLK->PCHCTRL[TIMER_GCLK_ID].bit.CHEN = 0;
+  while(GCLK->PCHCTRL[TIMER_GCLK_ID].bit.CHEN); // Wait for disable
+  GCLK_PCHCTRL_Type pchctrl;
+  pchctrl.bit.GEN                  = GCLK_PCHCTRL_GEN_GCLK2_Val;
+  pchctrl.bit.CHEN                 = 1;
+  GCLK->PCHCTRL[TIMER_GCLK_ID].reg = pchctrl.reg;
+  while(!GCLK->PCHCTRL[TIMER_GCLK_ID].bit.CHEN); // Wait for enable
+
+  // Counter must first be disabled to configure it
+  TIMER->COUNT16.CTRLA.reg &= ~TC_CTRLA_ENABLE;
+  while(TIMER->COUNT16.SYNCBUSY.bit.STATUS);
+
+  TIMER->COUNT16.CTRLA.reg =  // Configure timer counter
+    TC_CTRLA_PRESCALER_DIV1 | // 1:1 Prescale
+    TC_CTRLA_MODE_COUNT16;    // 16-bit counter mode
+
+  TIMER->COUNT16.WAVE.bit.WAVEGEN = 1; // Match frequency mode (MFRQ)
+
+  TIMER->COUNT16.CTRLBSET.reg = TCC_CTRLBCLR_DIR; // Count DOWN
+  while(TIMER->COUNT16.SYNCBUSY.bit.CTRLB);
+
+  TIMER->COUNT16.CC[0].reg = 10000; // Compare value for channel 0
+  while(TIMER->COUNT16.SYNCBUSY.bit.CC0);
+
+  TIMER->COUNT16.INTENSET.reg = TC_INTENSET_OVF; // Enable overflow interrupt
+
+  NVIC_DisableIRQ(IRQN);
+  NVIC_ClearPendingIRQ(IRQN);
+  NVIC_SetPriority(IRQN, 0); // Top priority
+  NVIC_EnableIRQ(IRQN);
+
+  // Enable TCx
+  TIMER->COUNT16.CTRLA.reg |= TC_CTRLA_ENABLE;
+  while(TIMER->COUNT16.SYNCBUSY.bit.STATUS);
+#else
   // Enable GCLK for TC4 and COUNTER (timer counter input clock)
   GCLK->CLKCTRL.reg = (uint16_t)(GCLK_CLKCTRL_CLKEN |
     GCLK_CLKCTRL_GEN_GCLK0 | GCLK_CLKCTRL_ID(GCM_TC4_TC5));
@@ -279,7 +333,8 @@ void RGBmatrixPanel::begin(void) {
   // Enable TCx
   TIMER->COUNT16.CTRLA.reg |= TC_CTRLA_ENABLE;
   while(TIMER->COUNT16.STATUS.bit.SYNCBUSY);
-#endif
+#endif // SAMD21
+#endif // ARDUINO_ARCH_SAMD
 }
 
 // Original RGBmatrixPanel library used 3/3/3 color.  Later version used
@@ -625,11 +680,18 @@ void RGBmatrixPanel::updateDisplay(void) {
   ICR1      = duration; // Set interval for next interrupt
   TCNT1     = 0;        // Restart interrupt timer
 #elif defined(ARDUINO_ARCH_SAMD)
+#ifdef __SAMD51__
+  TIMER->COUNT16.CC[0].reg = duration;
+  while(TIMER->COUNT16.SYNCBUSY.bit.CC0);
+  TIMER->COUNT16.COUNT.reg = duration;
+  while(TIMER->COUNT16.SYNCBUSY.bit.COUNT);
+#else
   TIMER->COUNT16.CC[0].reg = duration;
   while(TIMER->COUNT16.STATUS.bit.SYNCBUSY);
   TIMER->COUNT16.COUNT.reg = duration;
   while(TIMER->COUNT16.STATUS.bit.SYNCBUSY);
-#endif
+#endif // SAMD21
+#endif // ARDUINO_ARCH_SAMD
   *oeport  &= ~oemask;  // Re-enable output
   *latport &= ~latmask; // Latch down
 
@@ -668,10 +730,18 @@ void RGBmatrixPanel::updateDisplay(void) {
          [tick] "r" (tick),                   \
          [tock] "r" (tock));
 #elif defined(ARDUINO_ARCH_SAMD)
+#ifdef __SAMD51__ // No IOBUS on SAMD51
+    #define pew                    \
+      *outclrreg = rgbclkmask;     \
+      *outsetreg = expand[*ptr++]; \
+      *outsetreg = clkmask;        \
+      asm("nop");
+#else
     #define pew                    \
       *outclrreg = rgbclkmask;     \
       *outsetreg = expand[*ptr++]; \
       *outsetreg = clkmask;
+#endif
 #endif
 
     // Loop is unrolled for speed:

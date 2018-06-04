@@ -10,7 +10,11 @@
 #include <Adafruit_GFX.h>   // Core graphics library
 #include <RGBmatrixPanel.h> // Hardware-specific library
 
-#define CLK 8  // MUST be on PORTB! (Use pin 11 on Mega)
+// AVR boards: CLK must be on PORTB,
+// M0/M4 boards: CLK must be on same PORT as RGB pins
+// e.g. use 8 on Arduino Uno, 11 on Mega, A4 on Metro M4
+#define CLK 8
+//#define CLK A4 // USE THIS ON METRO M4
 #define LAT A3
 #define OE  9
 #define A   A0
