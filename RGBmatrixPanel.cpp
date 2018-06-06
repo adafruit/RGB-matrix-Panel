@@ -70,6 +70,12 @@ BSD license, all text above must be included in any redistribution.
  #define DATAPORT PORTD
  #define DATADIR  DDRD
  #define SCLKPORT PORTB
+#elif defined(__AVR_ATmega128__)
+ #define DATAPORT PORTA
+ #define DATADIR  DDRA
+ #define SCLKPORT PORTD
+ #define TIMSK1 TIMSK
+ #define TIFR1 TIFR
 #else
  // Ports for "standard" boards (Arduino Uno, Duemilanove, etc.)
  #define DATAPORT PORTD
