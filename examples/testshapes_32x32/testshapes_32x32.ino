@@ -90,9 +90,9 @@ void setup() {
   matrix.setTextColor(matrix.Color333(0,0,7));
   matrix.print('G');
   matrix.setTextColor(matrix.Color333(4,0,7));
-  matrix.print("B");
+  matrix.print('B');
   matrix.setTextColor(matrix.Color333(7,0,4));
-  matrix.print("*");
+  matrix.print('*');
 
   // whew!
 }
