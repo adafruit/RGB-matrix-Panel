@@ -9,27 +9,19 @@
 // for Adafruit Industries.
 // BSD license, all text above must be included in any redistribution.
 
-#include <Adafruit_GFX.h>   // Core graphics library
-#include <RGBmatrixPanel.h> // Hardware-specific library
-#include "image.h"
+#include <RGBmatrixPanel.h>
+#include "image.h" // Precomputed colorwheel image is here
 
-// If your 32x32 matrix has the SINGLE HEADER input,
-// use this pinout:
-#define CLK 8  // MUST be on PORTB! (Use pin 11 on Mega)
-#define OE  9
+#define CLK  8   // USE THIS ON ARDUINO UNO, ADAFRUIT METRO M0, etc.
+//#define CLK A4 // USE THIS ON METRO M4 (not M0)
+//#define CLK 11 // USE THIS ON ARDUINO MEGA
+#define OE   9
 #define LAT 10
 #define A   A0
 #define B   A1
 #define C   A2
 #define D   A3
-// If your matrix has the DOUBLE HEADER input, use:
-//#define CLK 8  // MUST be on PORTB! (Use pin 11 on Mega)
-//#define LAT 9
-//#define OE  10
-//#define A   A3
-//#define B   A2
-//#define C   A1
-//#define D   A0
+
 RGBmatrixPanel matrix(A, B, C, D, CLK, LAT, OE, false);
 
 void setup() {
@@ -46,5 +38,5 @@ void setup() {
 }
 
 void loop() {
-  // do nothing
+  // Do nothing -- image doesn't change
 }

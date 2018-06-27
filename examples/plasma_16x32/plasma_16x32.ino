@@ -6,20 +6,34 @@
 // for Adafruit Industries.
 // BSD license, all text above must be included in any redistribution.
 
-#include <avr/pgmspace.h>
-#include <Adafruit_GFX.h>   // Core graphics library
-#include <RGBmatrixPanel.h> // Hardware-specific library
+#include <RGBmatrixPanel.h>
 
-#define CLK 8  // MUST be on PORTB! (Use pin 11 on Mega)
-#define LAT A3
-#define OE  9
+// Most of the signal pins are configurable, but the CLK pin has some
+// special constraints.  On 8-bit AVR boards it must be on PORTB...
+// Pin 8 works on the Arduino Uno & compatibles (e.g. Adafruit Metro),
+// Pin 11 works on the Arduino Mega.  On 32-bit SAMD boards it must be
+// on the same PORT as the RGB data pins (D2-D7)...
+// Pin 8 works on the Adafruit Metro M0 or Arduino Zero,
+// Pin A4 works on the Adafruit Metro M4 (if using the Adafruit RGB
+// Matrix Shield, cut trace between CLK pads and run a wire to A4).
+
+#define CLK  8   // USE THIS ON ARDUINO UNO, ADAFRUIT METRO M0, etc.
+//#define CLK A4 // USE THIS ON METRO M4 (not M0)
+//#define CLK 11 // USE THIS ON ARDUINO MEGA
+#define OE   9
+#define LAT 10
 #define A   A0
 #define B   A1
 #define C   A2
+
 // Last parameter = 'true' enables double-buffering, for flicker-free,
 // buttery smooth animation.  Note that NOTHING WILL SHOW ON THE DISPLAY
 // until the first call to swapBuffers().  This is normal.
 RGBmatrixPanel matrix(A, B, C, CLK, LAT, OE, true);
+// Double-buffered mode consumes nearly all the RAM available on the
+// Arduino Uno -- only a handful of free bytes remain.  So this code uses
+// a bunch of precalculated data in tables to minimize RAM usage and speed
+// things up.
 
 static const int8_t PROGMEM sinetab[256] = {
      0,   2,   5,   8,  11,  15,  18,  21,
@@ -60,11 +74,14 @@ void setup() {
   matrix.begin();
 }
 
-const float radius1  = 65.2, radius2  = 92.0, radius3  = 163.2, radius4  = 176.8,
-            centerx1 = 64.4, centerx2 = 46.4, centerx3 =  93.6, centerx4 =  16.4, 
-            centery1 = 34.8, centery2 = 26.0, centery3 =  56.0, centery4 = -11.6;
-float       angle1   =  0.0, angle2   =  0.0, angle3   =   0.0, angle4   =   0.0;
-long        hueShift =  0;
+const float radius1 =65.2, radius2 =92.0, radius3 =163.2, radius4 =176.8,
+            centerx1=64.4, centerx2=46.4, centerx3= 93.6, centerx4= 16.4,
+            centery1=34.8, centery2=26.0, centery3= 56.0, centery4=-11.6;
+float       angle1  = 0.0, angle2  = 0.0, angle3  =  0.0, angle4  =  0.0;
+long        hueShift= 0;
+
+#define FPS 15         // Maximum frames-per-second
+uint32_t prevTime = 0; // For frame-to-frame interval timing
 
 void loop() {
   int           x1, x2, x3, x4, y1, y2, y3, y4, sx1, sx2, sx3, sx4;
@@ -94,11 +111,18 @@ void loop() {
     y1--; y2--; y3--; y4--;
   }
 
-  angle1 += 0.03;
-  angle2 -= 0.07;
-  angle3 += 0.13;
-  angle4 -= 0.15;
+  angle1   += 0.03;
+  angle2   -= 0.07;
+  angle3   += 0.13;
+  angle4   -= 0.15;
   hueShift += 2;
+
+  // To ensure that animation speed is similar on AVR & SAMD boards,
+  // limit frame rate to FPS value (might go slower, but never faster).
+  // This is preferable to delay() because the AVR is already plenty slow.
+  uint32_t t;
+  while(((t = millis()) - prevTime) < (1000 / FPS));
+  prevTime = t;
 
   matrix.swapBuffers(false);
 }
