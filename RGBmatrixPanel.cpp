@@ -59,7 +59,7 @@ BSD license, all text above must be included in any redistribution.
  // clock, as are pins 50-53.
  #define DATAPORT PORTA
  #define DATADIR  DDRA
- #define SCLKPORT PORTB
+ #define CLKPORT  PORTB
 #elif defined(__AVR_ATmega32U4__)
  // Arduino Leonardo: this is vestigial code an unlikely to ever be
  // finished -- DO NOT USE!!!  Unlike the Uno, digital pins 2-7 do NOT
@@ -69,12 +69,14 @@ BSD license, all text above must be included in any redistribution.
  // the LED matrix.  Bummer.
  #define DATAPORT PORTD
  #define DATADIR  DDRD
- #define SCLKPORT PORTB
+ #define CLKPORT  PORTB
+#elif defined(ARDUINO_ARCH_SAMD)
+  // Support for ATSAMD21-based boards, done with PortType!
 #else
  // Ports for "standard" boards (Arduino Uno, Duemilanove, etc.)
  #define DATAPORT PORTD
  #define DATADIR  DDRD
- #define SCLKPORT PORTB
+ #define CLKPORT  PORTB
 #endif
 
 #define nPlanes 4
@@ -91,7 +93,21 @@ static RGBmatrixPanel *activePanel = NULL;
 
 // Code common to both the 16x32 and 32x32 constructors:
 void RGBmatrixPanel::init(uint8_t rows, uint8_t a, uint8_t b, uint8_t c,
-  uint8_t sclk, uint8_t latch, uint8_t oe, boolean dbuf, uint8_t width) {
+  uint8_t clk, uint8_t lat, uint8_t oe, boolean dbuf, uint8_t width
+#if defined(ARDUINO_ARCH_SAMD)
+  ,uint8_t *pinlist
+#endif
+  ) {
+#if defined(ARDUINO_ARCH_SAMD)
+  // R1, G1, B1, R2, G2, B2 pins
+  static const uint8_t defaultrgbpins[] = { 2,3,4,5,6,7 };
+  memcpy(rgbpins, pinlist ? pinlist : defaultrgbpins, sizeof rgbpins);
+  // All six RGB pins MUST be on the same PORT # as CLK
+  int clkportnum = g_APinDescription[clk].ulPort;
+  for(uint8_t i=0; i<6; i++) {
+    if(g_APinDescription[rgbpins[i]].ulPort != clkportnum) return;
+  }
+#endif
 
   nRows = rows; // Number of multiplexed rows; actual height is 2X this
 
@@ -104,26 +120,26 @@ void RGBmatrixPanel::init(uint8_t rows, uint8_t a, uint8_t b, uint8_t c,
   matrixbuff[1] = (dbuf == true) ? &matrixbuff[0][buffsize] : matrixbuff[0];
 
   // Save pin numbers for use by begin() method later.
-  _a     = a;
-  _b     = b;
-  _c     = c;
-  _sclk  = sclk;
-  _latch = latch;
-  _oe    = oe;
+  _a   = a;
+  _b   = b;
+  _c   = c;
+  _clk = clk;
+  _lat = lat;
+  _oe  = oe;
 
   // Look up port registers and pin masks ahead of time,
   // avoids many slow digitalWrite() calls later.
-  sclkpin   = digitalPinToBitMask(sclk);
-  latport   = portOutputRegister(digitalPinToPort(latch));
-  latpin    = digitalPinToBitMask(latch);
+  clkmask   = digitalPinToBitMask(clk);
+  latport   = portOutputRegister(digitalPinToPort(lat));
+  latmask   = digitalPinToBitMask(lat);
   oeport    = portOutputRegister(digitalPinToPort(oe));
-  oepin     = digitalPinToBitMask(oe);
+  oemask    = digitalPinToBitMask(oe);
   addraport = portOutputRegister(digitalPinToPort(a));
-  addrapin  = digitalPinToBitMask(a);
+  addramask = digitalPinToBitMask(a);
   addrbport = portOutputRegister(digitalPinToPort(b));
-  addrbpin  = digitalPinToBitMask(b);
+  addrbmask = digitalPinToBitMask(b);
   addrcport = portOutputRegister(digitalPinToPort(c));
-  addrcpin  = digitalPinToBitMask(c); 
+  addrcmask = digitalPinToBitMask(c); 
   plane     = nPlanes - 1;
   row       = nRows   - 1;
   swapflag  = false;
@@ -133,25 +149,45 @@ void RGBmatrixPanel::init(uint8_t rows, uint8_t a, uint8_t b, uint8_t c,
 // Constructor for 16x32 panel:
 RGBmatrixPanel::RGBmatrixPanel(
   uint8_t a, uint8_t b, uint8_t c,
-  uint8_t sclk, uint8_t latch, uint8_t oe, boolean dbuf) :
-  Adafruit_GFX(32, 16) {
-
-  init(8, a, b, c, sclk, latch, oe, dbuf, 32);
+  uint8_t clk, uint8_t lat, uint8_t oe, boolean dbuf
+#if defined(ARDUINO_ARCH_SAMD)
+    ,uint8_t *pinlist
+#endif
+  ) : Adafruit_GFX(32, 16) {
+  init(8, a, b, c, clk, lat, oe, dbuf, 32
+#if defined(ARDUINO_ARCH_SAMD)
+    ,pinlist
+#endif
+  );
 }
 
 // Constructor for 32x32 or 32x64 panel:
 RGBmatrixPanel::RGBmatrixPanel(
   uint8_t a, uint8_t b, uint8_t c, uint8_t d,
-  uint8_t sclk, uint8_t latch, uint8_t oe, boolean dbuf, uint8_t width) :
-  Adafruit_GFX(width, 32) {
+  uint8_t clk, uint8_t lat, uint8_t oe, boolean dbuf, uint8_t width
+#if defined(ARDUINO_ARCH_SAMD)
+    ,uint8_t *pinlist
+#endif
+  ) : Adafruit_GFX(width, 32) {
 
-  init(16, a, b, c, sclk, latch, oe, dbuf, width);
+  init(16, a, b, c, clk, lat, oe, dbuf, width
+#if defined(ARDUINO_ARCH_SAMD)
+    ,pinlist
+#endif
+  );
 
   // Init a few extra 32x32-specific elements:
   _d        = d;
   addrdport = portOutputRegister(digitalPinToPort(d));
-  addrdpin  = digitalPinToBitMask(d);
+  addrdmask = digitalPinToBitMask(d);
 }
+
+#if defined(ARDUINO_ARCH_SAMD)
+#define TIMER         TC4
+#define IRQN          TC4_IRQn
+#define IRQ_HANDLER   TC4_Handler
+#define TIMER_GCLK_ID TC4_GCLK_ID
+#endif
 
 void RGBmatrixPanel::begin(void) {
 
@@ -160,27 +196,145 @@ void RGBmatrixPanel::begin(void) {
   activePanel = this;                      // For interrupt hander
 
   // Enable all comm & address pins as outputs, set default states:
-  pinMode(_sclk , OUTPUT); SCLKPORT   &= ~sclkpin;  // Low
-  pinMode(_latch, OUTPUT); *latport   &= ~latpin;   // Low
-  pinMode(_oe   , OUTPUT); *oeport    |= oepin;     // High (disable output)
-  pinMode(_a    , OUTPUT); *addraport &= ~addrapin; // Low
-  pinMode(_b    , OUTPUT); *addrbport &= ~addrbpin; // Low
-  pinMode(_c    , OUTPUT); *addrcport &= ~addrcpin; // Low
+  pinMode(_clk, OUTPUT); digitalWrite(_clk, LOW);  // Low
+  pinMode(_lat, OUTPUT); *latport   &= ~latmask;   // Low
+  pinMode(_oe , OUTPUT); *oeport    |= oemask;     // High (disable output)
+  pinMode(_a  , OUTPUT); *addraport &= ~addramask; // Low
+  pinMode(_b  , OUTPUT); *addrbport &= ~addrbmask; // Low
+  pinMode(_c  , OUTPUT); *addrcport &= ~addrcmask; // Low
   if(nRows > 8) {
-    pinMode(_d  , OUTPUT); *addrdport &= ~addrdpin; // Low
+    pinMode(_d, OUTPUT); *addrdport &= ~addrdmask; // Low
   }
+
+#if defined(__AVR__)
 
   // The high six bits of the data port are set as outputs;
   // Might make this configurable in the future, but not yet.
   DATADIR  = B11111100;
   DATAPORT = 0;
 
+#elif defined(ARDUINO_ARCH_SAMD)
+
+  // Semi-configurable RGB bits; must be on same PORT as CLK
+  int clkportnum = g_APinDescription[_clk].ulPort;
+#ifdef __SAMD51__ // No IOBUS on SAMD51
+  outsetreg = &(PORT->Group[clkportnum].OUTSET.reg);
+  outclrreg = &(PORT->Group[clkportnum].OUTCLR.reg);
+#else
+  outsetreg = &(PORT_IOBUS->Group[clkportnum].OUTSET.reg);
+  outclrreg = &(PORT_IOBUS->Group[clkportnum].OUTCLR.reg);
+#endif
+
+  PortType rgbmask[6];
+  clkmask = rgbclkmask = digitalPinToBitMask(_clk);
+  for(uint8_t i=0; i<6; i++) {
+    pinMode(rgbpins[i], OUTPUT);
+    rgbmask[i]  = digitalPinToBitMask(rgbpins[i]); // Pin bit mask
+    rgbclkmask |= rgbmask[i];                      // Add to RGB+CLK bit mask
+  }
+  for(int i=0; i<256; i++) {
+    expand[i] = 0;
+    if(i & 0x04) expand[i] |= rgbmask[0];
+    if(i & 0x08) expand[i] |= rgbmask[1];
+    if(i & 0x10) expand[i] |= rgbmask[2];
+    if(i & 0x20) expand[i] |= rgbmask[3];
+    if(i & 0x40) expand[i] |= rgbmask[4];
+    if(i & 0x80) expand[i] |= rgbmask[5];
+  }
+#endif
+
+#if defined(__AVR__)
   // Set up Timer1 for interrupt:
   TCCR1A  = _BV(WGM11); // Mode 14 (fast PWM), OC1A off
   TCCR1B  = _BV(WGM13) | _BV(WGM12) | _BV(CS10); // Mode 14, no prescale
   ICR1    = 100;
   TIMSK1 |= _BV(TOIE1); // Enable Timer1 interrupt
   sei();                // Enable global interrupts
+#endif
+
+#if defined(ARDUINO_ARCH_SAMD)
+#ifdef __SAMD51__
+  // Set up generic clock gen 2 as source for TC4
+  // Datasheet recommends setting GENCTRL register in a single write,
+  // so a temp value is used here to more easily construct a value.
+  GCLK_GENCTRL_Type genctrl;
+  genctrl.bit.SRC      = GCLK_GENCTRL_SRC_DFLL_Val; // 48 MHz source
+  genctrl.bit.GENEN    = 1; // Enable
+  genctrl.bit.OE       = 1;
+  genctrl.bit.DIVSEL   = 0; // Do not divide clock source
+  genctrl.bit.DIV      = 0;
+  GCLK->GENCTRL[2].reg = genctrl.reg;
+  while(GCLK->SYNCBUSY.bit.GENCTRL1 == 1);
+
+  GCLK->PCHCTRL[TIMER_GCLK_ID].bit.CHEN = 0;
+  while(GCLK->PCHCTRL[TIMER_GCLK_ID].bit.CHEN); // Wait for disable
+  GCLK_PCHCTRL_Type pchctrl;
+  pchctrl.bit.GEN                  = GCLK_PCHCTRL_GEN_GCLK2_Val;
+  pchctrl.bit.CHEN                 = 1;
+  GCLK->PCHCTRL[TIMER_GCLK_ID].reg = pchctrl.reg;
+  while(!GCLK->PCHCTRL[TIMER_GCLK_ID].bit.CHEN); // Wait for enable
+
+  // Counter must first be disabled to configure it
+  TIMER->COUNT16.CTRLA.reg &= ~TC_CTRLA_ENABLE;
+  while(TIMER->COUNT16.SYNCBUSY.bit.STATUS);
+
+  TIMER->COUNT16.CTRLA.reg =  // Configure timer counter
+    TC_CTRLA_PRESCALER_DIV1 | // 1:1 Prescale
+    TC_CTRLA_MODE_COUNT16;    // 16-bit counter mode
+
+  TIMER->COUNT16.WAVE.bit.WAVEGEN = 1; // Match frequency mode (MFRQ)
+
+  TIMER->COUNT16.CTRLBSET.reg = TCC_CTRLBCLR_DIR; // Count DOWN
+  while(TIMER->COUNT16.SYNCBUSY.bit.CTRLB);
+
+  TIMER->COUNT16.CC[0].reg = 10000; // Compare value for channel 0
+  while(TIMER->COUNT16.SYNCBUSY.bit.CC0);
+
+  TIMER->COUNT16.INTENSET.reg = TC_INTENSET_OVF; // Enable overflow interrupt
+
+  NVIC_DisableIRQ(IRQN);
+  NVIC_ClearPendingIRQ(IRQN);
+  NVIC_SetPriority(IRQN, 0); // Top priority
+  NVIC_EnableIRQ(IRQN);
+
+  // Enable TCx
+  TIMER->COUNT16.CTRLA.reg |= TC_CTRLA_ENABLE;
+  while(TIMER->COUNT16.SYNCBUSY.bit.STATUS);
+#else
+  // Enable GCLK for TC4 and COUNTER (timer counter input clock)
+  GCLK->CLKCTRL.reg = (uint16_t)(GCLK_CLKCTRL_CLKEN |
+    GCLK_CLKCTRL_GEN_GCLK0 | GCLK_CLKCTRL_ID(GCM_TC4_TC5));
+  while(GCLK->STATUS.bit.SYNCBUSY == 1);
+
+  // Counter must first be disabled to configure it
+  TIMER->COUNT16.CTRLA.reg &= ~TC_CTRLA_ENABLE;
+  while(TIMER->COUNT16.STATUS.bit.SYNCBUSY);
+
+  TIMER->COUNT16.CTRLA.reg =  // Configure timer counter
+    TC_CTRLA_PRESCALER_DIV1 | // 1:1 Prescale
+    TC_CTRLA_WAVEGEN_MFRQ   | // Match frequency generation mode (MFRQ)
+    TC_CTRLA_MODE_COUNT16;    // 16-bit counter mode
+  while(TIMER->COUNT16.STATUS.bit.SYNCBUSY);
+
+//  TIMER->COUNT16.CTRLBCLR.reg = TCC_CTRLBCLR_DIR; // Count up
+  TIMER->COUNT16.CTRLBSET.reg = TCC_CTRLBCLR_DIR; // Count DOWN
+  while(TIMER->COUNT16.STATUS.bit.SYNCBUSY);
+
+  TIMER->COUNT16.CC[0].reg = 10000; // Compare value for channel 0
+  while(TIMER->COUNT16.STATUS.bit.SYNCBUSY);
+
+  TIMER->COUNT16.INTENSET.reg = TC_INTENSET_OVF; // Enable overflow interrupt
+
+  NVIC_DisableIRQ(IRQN);
+  NVIC_ClearPendingIRQ(IRQN);
+  NVIC_SetPriority(IRQN, 0); // Top priority
+  NVIC_EnableIRQ(IRQN);
+
+  // Enable TCx
+  TIMER->COUNT16.CTRLA.reg |= TC_CTRLA_ENABLE;
+  while(TIMER->COUNT16.STATUS.bit.SYNCBUSY);
+#endif // SAMD21
+#endif // ARDUINO_ARCH_SAMD
 }
 
 // Original RGBmatrixPanel library used 3/3/3 color.  Later version used
@@ -217,9 +371,9 @@ uint16_t RGBmatrixPanel::Color888(uint8_t r, uint8_t g, uint8_t b) {
 uint16_t RGBmatrixPanel::Color888(
   uint8_t r, uint8_t g, uint8_t b, boolean gflag) {
   if(gflag) { // Gamma-corrected color?
-    r = pgm_read_byte(&gamma[r]); // Gamma correction table maps
-    g = pgm_read_byte(&gamma[g]); // 8-bit input to 4-bit output
-    b = pgm_read_byte(&gamma[b]);
+    r = pgm_read_byte(&gamma_table[r]); // Gamma correction table maps
+    g = pgm_read_byte(&gamma_table[g]); // 8-bit input to 4-bit output
+    b = pgm_read_byte(&gamma_table[b]);
     return ((uint16_t)r << 12) | ((uint16_t)(r & 0x8) << 8) | // 4/4/4->5/6/5
            ((uint16_t)g <<  7) | ((uint16_t)(g & 0xC) << 3) |
            (          b <<  1) | (           b        >> 3);
@@ -258,9 +412,9 @@ uint16_t RGBmatrixPanel::ColorHSV(
   // to allow shifts, and upgrade to int makes other conversions implicit.
   v1 = val + 1;
   if(gflag) { // Gamma-corrected color?
-    r = pgm_read_byte(&gamma[(r * v1) >> 8]); // Gamma correction table maps
-    g = pgm_read_byte(&gamma[(g * v1) >> 8]); // 8-bit input to 4-bit output
-    b = pgm_read_byte(&gamma[(b * v1) >> 8]);
+    r = pgm_read_byte(&gamma_table[(r * v1) >> 8]); // Gamma correction table maps
+    g = pgm_read_byte(&gamma_table[(g * v1) >> 8]); // 8-bit input to 4-bit output
+    b = pgm_read_byte(&gamma_table[(b * v1) >> 8]);
   } else { // linear (uncorrected) color
     r = (r * v1) >> 12; // 4-bit results
     g = (g * v1) >> 12;
@@ -402,10 +556,21 @@ void RGBmatrixPanel::dumpMatrix(void) {
 
 // -------------------- Interrupt handler stuff --------------------
 
+#if defined(__AVR__)
+
 ISR(TIMER1_OVF_vect, ISR_BLOCK) { // ISR_BLOCK important -- see notes later
   activePanel->updateDisplay();   // Call refresh func for active display
   TIFR1 |= TOV1;                  // Clear Timer1 interrupt flag
 }
+
+#elif defined(ARDUINO_ARCH_SAMD)
+
+void IRQ_HANDLER() {
+  activePanel->updateDisplay();   // Call refresh func for active display
+  TIMER->COUNT16.INTFLAG.reg = TC_INTFLAG_OVF; // Clear overflow flag
+}
+
+#endif
 
 // Two constants are used in timing each successive BCM interval.
 // These were found empirically, by checking the value of TCNT1 at
@@ -419,8 +584,14 @@ ISR(TIMER1_OVF_vect, ISR_BLOCK) { // ISR_BLOCK important -- see notes later
 // issuing loop (not actually a 'loop' because it's unrolled, but eh).
 // Both numbers are rounded up slightly to allow a little wiggle room
 // should different compilers produce slightly different results.
-#define CALLOVERHEAD 60   // Actual value measured = 56
-#define LOOPTIME     200  // Actual value measured = 188
+#if defined(__AVR__)
+  #define CALLOVERHEAD 60   // Actual value measured = 56
+  #define LOOPTIME     200  // Actual value measured = 188
+#endif
+#if defined(ARDUINO_ARCH_SAMD)
+  #define CALLOVERHEAD 60  // Actual = 58
+  #define LOOPTIME     600 // Actual = 558
+#endif
 // The "on" time for bitplane 0 (with the shortest BCM interval) can
 // then be estimated as LOOPTIME + CALLOVERHEAD * 2.  Each successive
 // bitplane then doubles the prior amount of time.  We can then
@@ -456,8 +627,8 @@ void RGBmatrixPanel::updateDisplay(void) {
   uint8_t  i, tick, tock, *ptr;
   uint16_t t, duration;
 
-  *oeport  |= oepin;  // Disable LED output during row/plane switchover
-  *latport |= latpin; // Latch data loaded during *prior* interrupt
+  *oeport  |= oemask;  // Disable LED output during row/plane switchover
+  *latport |= latmask; // Latch data loaded during *prior* interrupt
 
   // Calculate time to next interrupt BEFORE incrementing plane #.
   // This is because duration is the display time for the data loaded
@@ -489,15 +660,15 @@ void RGBmatrixPanel::updateDisplay(void) {
   } else if(plane == 1) {
     // Plane 0 was loaded on prior interrupt invocation and is about to
     // latch now, so update the row address lines before we do that:
-    if(row & 0x1)   *addraport |=  addrapin;
-    else            *addraport &= ~addrapin;
-    if(row & 0x2)   *addrbport |=  addrbpin;
-    else            *addrbport &= ~addrbpin;
-    if(row & 0x4)   *addrcport |=  addrcpin;
-    else            *addrcport &= ~addrcpin;
+    if(row & 0x1)   *addraport |=  addramask;
+    else            *addraport &= ~addramask;
+    if(row & 0x2)   *addrbport |=  addrbmask;
+    else            *addrbport &= ~addrbmask;
+    if(row & 0x4)   *addrcport |=  addrcmask;
+    else            *addrcport &= ~addrcmask;
     if(nRows > 8) {
-      if(row & 0x8) *addrdport |=  addrdpin;
-      else          *addrdport &= ~addrdpin;
+      if(row & 0x8) *addrdport |=  addrdmask;
+      else          *addrdport &= ~addrdmask;
     }
   }
 
@@ -505,21 +676,38 @@ void RGBmatrixPanel::updateDisplay(void) {
   // A local register copy can speed some things up:
   ptr = (uint8_t *)buffptr;
 
+#if defined(__AVR__)
   ICR1      = duration; // Set interval for next interrupt
   TCNT1     = 0;        // Restart interrupt timer
-  *oeport  &= ~oepin;   // Re-enable output
-  *latport &= ~latpin;  // Latch down
+#elif defined(ARDUINO_ARCH_SAMD)
+#ifdef __SAMD51__
+  TIMER->COUNT16.CC[0].reg = duration;
+  while(TIMER->COUNT16.SYNCBUSY.bit.CC0);
+  TIMER->COUNT16.COUNT.reg = duration;
+  while(TIMER->COUNT16.SYNCBUSY.bit.COUNT);
+#else
+  TIMER->COUNT16.CC[0].reg = duration;
+  while(TIMER->COUNT16.STATUS.bit.SYNCBUSY);
+  TIMER->COUNT16.COUNT.reg = duration;
+  while(TIMER->COUNT16.STATUS.bit.SYNCBUSY);
+#endif // SAMD21
+#endif // ARDUINO_ARCH_SAMD
+  *oeport  &= ~oemask;  // Re-enable output
+  *latport &= ~latmask; // Latch down
 
-  // Record current state of SCLKPORT register, as well as a second
+  // Record current state of CLKPORT register, as well as a second
   // copy with the clock bit set.  This makes the innnermost data-
   // pushing loops faster, as they can just set the PORT state and
   // not have to load/modify/store bits every single time.  It's a
   // somewhat rude trick that ONLY works because the interrupt
   // handler is set ISR_BLOCK, halting any other interrupts that
   // might otherwise also be twiddling the port at the same time
-  // (else this would clobber them).
-  tock = SCLKPORT;
-  tick = tock | sclkpin;
+  // (else this would clobber them). only needed for AVR's where you
+  // cannot set one bit in a single instruction
+#if defined(__AVR__)
+  tock = CLKPORT;
+  tick = tock | clkmask;
+#endif
 
   if(plane > 0) { // 188 ticks from TCNT1=0 (above) to end of function
 
@@ -527,6 +715,7 @@ void RGBmatrixPanel::updateDisplay(void) {
     // The least 2 bits (used for plane 0 data) are presumed masked out
     // by the port direction bits.
 
+#if defined(__AVR__)
     // A tiny bit of inline assembly is used; compiler doesn't pick
     // up on opportunity for post-increment addressing mode.
     // 5 instruction ticks per 'pew' = 160 ticks total
@@ -537,9 +726,23 @@ void RGBmatrixPanel::updateDisplay(void) {
       "out %[clk]     , %[tock]"     "\n"     \
       :: [ptr]  "e" (ptr),                    \
          [data] "I" (_SFR_IO_ADDR(DATAPORT)), \
-         [clk]  "I" (_SFR_IO_ADDR(SCLKPORT)), \
+         [clk]  "I" (_SFR_IO_ADDR(CLKPORT)),  \
          [tick] "r" (tick),                   \
          [tock] "r" (tock));
+#elif defined(ARDUINO_ARCH_SAMD)
+#ifdef __SAMD51__ // No IOBUS on SAMD51
+    #define pew                    \
+      *outclrreg = rgbclkmask;     \
+      *outsetreg = expand[*ptr++]; \
+      *outsetreg = clkmask;        \
+      asm("nop");
+#else
+    #define pew                    \
+      *outclrreg = rgbclkmask;     \
+      *outsetreg = expand[*ptr++]; \
+      *outsetreg = clkmask;
+#endif
+#endif
 
     // Loop is unrolled for speed:
     pew pew pew pew pew pew pew pew
@@ -547,17 +750,21 @@ void RGBmatrixPanel::updateDisplay(void) {
     pew pew pew pew pew pew pew pew
     pew pew pew pew pew pew pew pew
 
-      if (WIDTH == 64) {
-    pew pew pew pew pew pew pew pew
-    pew pew pew pew pew pew pew pew
-    pew pew pew pew pew pew pew pew
-    pew pew pew pew pew pew pew pew
-      }
+    if(WIDTH == 64) {
+      pew pew pew pew pew pew pew pew
+      pew pew pew pew pew pew pew pew
+      pew pew pew pew pew pew pew pew
+      pew pew pew pew pew pew pew pew
+    }
+
+#if defined(ARDUINO_ARCH_SAMD)
+    *outclrreg = clkmask; // Set clock low
+#endif
 
     buffptr = ptr; //+= 32;
 
   } else { // 920 ticks from TCNT1=0 (above) to end of function
-
+#if defined(__AVR__)
     // Planes 1-3 (handled above) formatted their data "in place,"
     // their layout matching that out the output PORT register (where
     // 6 bits correspond to output data lines), maximizing throughput
@@ -569,12 +776,25 @@ void RGBmatrixPanel::updateDisplay(void) {
     // has the longest display interval, so the extra work fits.
     for(i=0; i<WIDTH; i++) {
       DATAPORT =
-        ( ptr[i]    << 6)         |
-        ((ptr[i+WIDTH] << 4) & 0x30) |
+        ( ptr[i]         << 6)         |
+        ((ptr[i+WIDTH]   << 4) & 0x30) |
         ((ptr[i+WIDTH*2] << 2) & 0x0C);
-      SCLKPORT = tick; // Clock lo
-      SCLKPORT = tock; // Clock hi
+      CLKPORT = tick; // Clock lo
+      CLKPORT = tock; // Clock hi
     } 
+#elif defined(ARDUINO_ARCH_SAMD)
+    for (int i=0; i<WIDTH; i++) {
+      byte b = 
+	( ptr[i]         << 6)         |
+        ((ptr[i+WIDTH]   << 4) & 0x30) |
+        ((ptr[i+WIDTH*2] << 2) & 0x0C);
+
+      *outclrreg = rgbclkmask; // Clear all data and clock bits together
+      *outsetreg = expand[b];  // Set new data bits
+      *outsetreg = clkmask;    // Set clock high
+    }
+    *outclrreg = clkmask;      // Set clock low
+#endif
   }
 }
 

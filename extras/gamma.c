@@ -23,7 +23,7 @@ int main(int argc, char *argv[])
 	  "#ifndef _GAMMA_H_\n"
 	  "#define _GAMMA_H_\n\n"
 	  "#include <avr/pgmspace.h>\n\n"
-	  "static const uint8_t PROGMEM gamma[] = {\n  ");
+	  "static const uint8_t PROGMEM gamma_table[] = {\n  ");
 
 	for(i=0; i<256; i++) {
 		(void)printf("0x%02x",(int)(pow((float)i / 255.0, GAMMA) *
