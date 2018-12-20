@@ -11,7 +11,7 @@
 
 #if defined(__AVR__)
   typedef uint8_t  PortType;
-#elif defined(__arm__)
+#elif defined(__arm__) || defined(__xtensa__)
   typedef uint32_t PortType; // Formerly 'RwReg' but interfered w/CMCIS header
 #endif
 
@@ -22,7 +22,7 @@ class RGBmatrixPanel : public Adafruit_GFX {
   // Constructor for 16x32 panel:
   RGBmatrixPanel(uint8_t a, uint8_t b, uint8_t c,
     uint8_t clk, uint8_t lat, uint8_t oe, boolean dbuf
-#if defined(ARDUINO_ARCH_SAMD)
+#if defined(ARDUINO_ARCH_SAMD) || defined(ARDUINO_ARCH_ESP32)
     ,uint8_t *pinlist=NULL
 #endif
     );
@@ -30,7 +30,7 @@ class RGBmatrixPanel : public Adafruit_GFX {
   // Constructor for 32x32 panel (adds 'd' pin):
   RGBmatrixPanel(uint8_t a, uint8_t b, uint8_t c, uint8_t d,
     uint8_t clk, uint8_t lat, uint8_t oe, boolean dbuf, uint8_t width=32
-#if defined(ARDUINO_ARCH_SAMD)
+#if defined(ARDUINO_ARCH_SAMD) || defined(ARDUINO_ARCH_ESP32)
     ,uint8_t *pinlist=NULL
 #endif
     );
@@ -62,7 +62,7 @@ class RGBmatrixPanel : public Adafruit_GFX {
   void init(uint8_t rows, uint8_t a, uint8_t b, uint8_t c,
 	    uint8_t clk, uint8_t lat, uint8_t oe, boolean dbuf, 
 	    uint8_t width
-#if defined(ARDUINO_ARCH_SAMD)
+#if defined(ARDUINO_ARCH_SAMD) || defined(ARDUINO_ARCH_ESP32)
             ,uint8_t *rgbpins
 #endif
   );
@@ -74,7 +74,7 @@ class RGBmatrixPanel : public Adafruit_GFX {
   volatile PortType *latport, *oeport,
                     *addraport, *addrbport, *addrcport, *addrdport;
 
-#if defined(ARDUINO_ARCH_SAMD)
+#if defined(ARDUINO_ARCH_SAMD) || defined(ARDUINO_ARCH_ESP32)
   uint8_t  rgbpins[6];                      // Pin numbers for 2x R,G,B bits
   volatile PortType *outsetreg, *outclrreg; // PORT bit set, clear registers
   PortType           rgbclkmask;            // Mask of all RGB bits + CLK
