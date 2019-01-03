@@ -13,6 +13,10 @@ Place the RGBmatrixPanel library folder your arduinosketchfolder/libraries/ fold
 You may need to create the libraries subfolder if its your first library. 
 Restart the IDE.
 
-
 We also have a great tutorial on Arduino library installation at:
 http://learn.adafruit.com/adafruit-all-about-arduino-libraries-install-use
+
+If you need support for RGB888 (24bpp) and need to/can run on Teensy 3.1/3.2/3.5/3.6 or 
+ESP32 chips (not supported by RGB-matrix-Panel), please look at
+https://github.com/marcmerlin/SmartMatrix_GFX which offers a GFX compatibility layer on
+top of https://github.com/pixelmatix/SmartMatrix
