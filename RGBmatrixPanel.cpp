@@ -36,6 +36,12 @@ BSD license, all text above must be included in any redistribution.
 #include "RGBmatrixPanel.h"
 #include "gamma.h"
 
+#ifdef ARDUINO_ARCH_ESP32
+#include <string.h>
+#include "freertos/FreeRTOS.h"
+#include "driver/timer.h"
+#endif
+
 #ifndef _swap_int16_t
 #define _swap_int16_t(a, b) { int16_t t = a; a = b; b = t; }
 #endif
@@ -70,7 +76,7 @@ BSD license, all text above must be included in any redistribution.
  #define DATAPORT PORTD
  #define DATADIR  DDRD
  #define CLKPORT  PORTB
-#elif defined(ARDUINO_ARCH_SAMD)
+#elif defined(ARDUINO_ARCH_SAMD) || defined(ARDUINO_ARCH_ESP32)
   // Support for ATSAMD21-based boards, done with PortType!
 #else
  // Ports for "standard" boards (Arduino Uno, Duemilanove, etc.)
@@ -94,19 +100,21 @@ static RGBmatrixPanel *activePanel = NULL;
 // Code common to both the 16x32 and 32x32 constructors:
 void RGBmatrixPanel::init(uint8_t rows, uint8_t a, uint8_t b, uint8_t c,
   uint8_t clk, uint8_t lat, uint8_t oe, boolean dbuf, uint8_t width
-#if defined(ARDUINO_ARCH_SAMD)
+#if defined(ARDUINO_ARCH_SAMD) || defined(ARDUINO_ARCH_ESP32)
   ,uint8_t *pinlist
 #endif
   ) {
-#if defined(ARDUINO_ARCH_SAMD)
+#if defined(ARDUINO_ARCH_SAMD) || defined(ARDUINO_ARCH_ESP32)
   // R1, G1, B1, R2, G2, B2 pins
   static const uint8_t defaultrgbpins[] = { 2,3,4,5,6,7 };
   memcpy(rgbpins, pinlist ? pinlist : defaultrgbpins, sizeof rgbpins);
+#if defined(ARDUINO_ARCH_SAMD)
   // All six RGB pins MUST be on the same PORT # as CLK
   int clkportnum = g_APinDescription[clk].ulPort;
   for(uint8_t i=0; i<6; i++) {
     if(g_APinDescription[rgbpins[i]].ulPort != clkportnum) return;
   }
+#endif
 #endif
 
   nRows = rows; // Number of multiplexed rows; actual height is 2X this
@@ -150,12 +158,12 @@ void RGBmatrixPanel::init(uint8_t rows, uint8_t a, uint8_t b, uint8_t c,
 RGBmatrixPanel::RGBmatrixPanel(
   uint8_t a, uint8_t b, uint8_t c,
   uint8_t clk, uint8_t lat, uint8_t oe, boolean dbuf
-#if defined(ARDUINO_ARCH_SAMD)
+#if defined(ARDUINO_ARCH_SAMD) || defined(ARDUINO_ARCH_ESP32)
     ,uint8_t *pinlist
 #endif
   ) : Adafruit_GFX(32, 16) {
   init(8, a, b, c, clk, lat, oe, dbuf, 32
-#if defined(ARDUINO_ARCH_SAMD)
+#if defined(ARDUINO_ARCH_SAMD) || defined(ARDUINO_ARCH_ESP32)
     ,pinlist
 #endif
   );
@@ -165,13 +173,13 @@ RGBmatrixPanel::RGBmatrixPanel(
 RGBmatrixPanel::RGBmatrixPanel(
   uint8_t a, uint8_t b, uint8_t c, uint8_t d,
   uint8_t clk, uint8_t lat, uint8_t oe, boolean dbuf, uint8_t width
-#if defined(ARDUINO_ARCH_SAMD)
+#if defined(ARDUINO_ARCH_SAMD) || defined(ARDUINO_ARCH_ESP32)
     ,uint8_t *pinlist
 #endif
   ) : Adafruit_GFX(width, 32) {
 
   init(16, a, b, c, clk, lat, oe, dbuf, width
-#if defined(ARDUINO_ARCH_SAMD)
+#if defined(ARDUINO_ARCH_SAMD) || defined(ARDUINO_ARCH_ESP32)
     ,pinlist
 #endif
   );
@@ -187,6 +195,8 @@ RGBmatrixPanel::RGBmatrixPanel(
 #define IRQN          TC4_IRQn
 #define IRQ_HANDLER   TC4_Handler
 #define TIMER_GCLK_ID TC4_GCLK_ID
+#elif defined(ARDUINO_ARCH_ESP32)
+IRAM_ATTR void IRQ_HANDLER(void *);
 #endif
 
 void RGBmatrixPanel::begin(void) {
@@ -241,6 +251,54 @@ void RGBmatrixPanel::begin(void) {
     if(i & 0x40) expand[i] |= rgbmask[4];
     if(i & 0x80) expand[i] |= rgbmask[5];
   }
+#elif defined(ARDUINO_ARCH_ESP32)
+  // Semi-configurable RGB bits; must be on same PORT as CLK
+  if (_clk < 32) {
+	  outsetreg = &GPIO.out_w1ts;
+	  outclrreg = &GPIO.out_w1tc;
+  } else {
+	  outsetreg =  (volatile PortType*) &(GPIO.out1_w1ts);
+	  outclrreg =  (volatile PortType*) &(GPIO.out1_w1tc);
+  }
+
+    PortType rgbmask[6];
+    clkmask = rgbclkmask = digitalPinToBitMask(_clk);
+    for(uint8_t i=0; i<6; i++) {
+      pinMode(rgbpins[i], OUTPUT);
+      rgbmask[i]  = digitalPinToBitMask(rgbpins[i]); // Pin bit mask
+      rgbclkmask |= rgbmask[i];                      // Add to RGB+CLK bit mask
+    }
+    for(int i=0; i<256; i++) {
+      expand[i] = 0;
+      if(i & 0x04) expand[i] |= rgbmask[0];
+      if(i & 0x08) expand[i] |= rgbmask[1];
+      if(i & 0x10) expand[i] |= rgbmask[2];
+      if(i & 0x20) expand[i] |= rgbmask[3];
+      if(i & 0x40) expand[i] |= rgbmask[4];
+      if(i & 0x80) expand[i] |= rgbmask[5];
+    }
+#endif
+
+#if defined(ARDUINO_ARCH_ESP32)
+    timer_config_t tim_config;
+    tim_config.divider = 2; // Run Timer at 40 MHz
+    tim_config.counter_dir = TIMER_COUNT_UP;
+    tim_config.counter_en = TIMER_PAUSE;
+    tim_config.alarm_en = true;
+    tim_config.auto_reload = true;
+    tim_config.intr_type = TIMER_INTR_LEVEL;
+
+    timer_init(TIMER_GROUP_1, TIMER_0, &tim_config);
+    /* Timer's counter will initially start from value below.
+    	 Also, if auto_reload is set, this value will be automatically reload on alarm */
+    timer_set_counter_value(TIMER_GROUP_1, TIMER_0, 0x00000000ULL);
+    /* Configure the alarm value and the interrupt on alarm. */
+    timer_set_alarm_value(TIMER_GROUP_1, TIMER_0, 10000);
+    timer_enable_intr(TIMER_GROUP_1, TIMER_0);
+    timer_isr_register(TIMER_GROUP_1, TIMER_0, IRQ_HANDLER,
+    		(void *) TIMER_0, ESP_INTR_FLAG_IRAM, NULL);
+
+    timer_start(TIMER_GROUP_1, TIMER_0);
 #endif
 
 #if defined(__AVR__)
@@ -570,6 +628,23 @@ void IRQ_HANDLER() {
   TIMER->COUNT16.INTFLAG.reg = TC_INTFLAG_OVF; // Clear overflow flag
 }
 
+#elif defined(ARDUINO_ARCH_ESP32)
+IRAM_ATTR void IRQ_HANDLER(void *arg) {
+	int timer_idx = (int) arg;
+	/* Retrieve the interrupt status and the counter value
+		 from the timer that reported the interrupt */
+	uint32_t intr_status = TIMERG1.int_st_timers.val;
+	activePanel->updateDisplay();   // Call refresh func for active display
+	/* Clear the interrupt
+			 and update the alarm time for the timer with without reload */
+	if ((intr_status & BIT(timer_idx)) && timer_idx == TIMER_0) {
+		TIMERG1.int_clr_timers.t0 = 1;
+	}
+	/* After the alarm has been triggered
+  	 we need enable it again, so it is triggered the next time */
+	TIMERG1.hw_timer[timer_idx].config.alarm_en = TIMER_ALARM_EN;
+}
+
 #endif
 
 // Two constants are used in timing each successive BCM interval.
@@ -591,6 +666,10 @@ void IRQ_HANDLER() {
 #if defined(ARDUINO_ARCH_SAMD)
   #define CALLOVERHEAD 60  // Actual = 58
   #define LOOPTIME     600 // Actual = 558
+#endif
+#if defined(ARDUINO_ARCH_ESP32)
+  #define CALLOVERHEAD 30  // Actual = 25
+  #define LOOPTIME     400 // Actual = 1563 / 4
 #endif
 // The "on" time for bitplane 0 (with the shortest BCM interval) can
 // then be estimated as LOOPTIME + CALLOVERHEAD * 2.  Each successive
@@ -622,8 +701,11 @@ void IRQ_HANDLER() {
 // while the *current* plane/row is being shown.  As a result, the
 // counter variables change between past/present/future tense in mid-
 // function...hopefully tenses are sufficiently commented.
-
+#if defined(ARDUINO_ARCH_ESP32)
+IRAM_ATTR void RGBmatrixPanel::updateDisplay(void) {
+#else
 void RGBmatrixPanel::updateDisplay(void) {
+#endif
   uint8_t  i, tick, tock, *ptr;
   uint16_t t, duration;
 
@@ -691,6 +773,8 @@ void RGBmatrixPanel::updateDisplay(void) {
   TIMER->COUNT16.COUNT.reg = duration;
   while(TIMER->COUNT16.STATUS.bit.SYNCBUSY);
 #endif // SAMD21
+#elif defined(ARDUINO_ARCH_ESP32)
+  timer_set_alarm_value(TIMER_GROUP_1, TIMER_0, duration);
 #endif // ARDUINO_ARCH_SAMD
   *oeport  &= ~oemask;  // Re-enable output
   *latport &= ~latmask; // Latch down
@@ -729,7 +813,7 @@ void RGBmatrixPanel::updateDisplay(void) {
          [clk]  "I" (_SFR_IO_ADDR(CLKPORT)),  \
          [tick] "r" (tick),                   \
          [tock] "r" (tock));
-#elif defined(ARDUINO_ARCH_SAMD)
+#elif defined(ARDUINO_ARCH_SAMD) || defined(ARDUINO_ARCH_ESP32)
 #ifdef __SAMD51__ // No IOBUS on SAMD51
     #define pew                    \
       *outclrreg = rgbclkmask;     \
@@ -757,7 +841,7 @@ void RGBmatrixPanel::updateDisplay(void) {
       pew pew pew pew pew pew pew pew
     }
 
-#if defined(ARDUINO_ARCH_SAMD)
+#if defined(ARDUINO_ARCH_SAMD) || defined(ARDUINO_ARCH_ESP32)
     *outclrreg = clkmask; // Set clock low
 #endif
 
@@ -782,7 +866,7 @@ void RGBmatrixPanel::updateDisplay(void) {
       CLKPORT = tick; // Clock lo
       CLKPORT = tock; // Clock hi
     } 
-#elif defined(ARDUINO_ARCH_SAMD)
+#elif defined(ARDUINO_ARCH_SAMD) || defined(ARDUINO_ARCH_ESP32)
     for (int i=0; i<WIDTH; i++) {
       byte b = 
 	( ptr[i]         << 6)         |

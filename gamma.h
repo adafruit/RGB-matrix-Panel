@@ -1,7 +1,11 @@
 #ifndef _GAMMA_H_
 #define _GAMMA_H_
 
-#include <avr/pgmspace.h>
+#ifdef __AVR__
+  #include <avr/pgmspace.h>
+#elif defined(ESP8266) || defined(ESP32)
+  #include <pgmspace.h>
+#endif
 
 static const uint8_t PROGMEM gamma_table[] = {
   0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
