@@ -122,6 +122,6 @@ uint16_t Wheel(byte WheelPos) {
    return matrix.Color333(0, 7-WheelPos, WheelPos);
   } else {
    WheelPos -= 16;
-   return matrix.Color333(0, WheelPos, 7 - WheelPos);
+   return matrix.Color333(WheelPos, 0, 7 - WheelPos);
   }
 }
