@@ -20,6 +20,7 @@
 #define CLK  8   // USE THIS ON ARDUINO UNO, ADAFRUIT METRO M0, etc.
 //#define CLK A4 // USE THIS ON METRO M4 (not M0)
 //#define CLK 11 // USE THIS ON ARDUINO MEGA
+//#define CLK A6 // USE THIS ON NANO 33 IoT
 #define OE   9 // USE THIS ON EXCEPT ON NANO 33 IoT
 //#define OE 11 // USE THIS ON NANO 33 IoT
 #define LAT 10
