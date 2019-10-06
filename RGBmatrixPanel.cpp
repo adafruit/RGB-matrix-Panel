@@ -106,7 +106,11 @@ void RGBmatrixPanel::init(uint8_t rows, uint8_t a, uint8_t b, uint8_t c,
   ) {
 #if defined(ARDUINO_ARCH_SAMD) || defined(ARDUINO_ARCH_ESP32)
   // R1, G1, B1, R2, G2, B2 pins
-  static const uint8_t defaultrgbpins[] = { 2,3,4,5,6,7 };
+  #if defined(ARDUINO_SAMD_NANO_33_IOT)
+    static const uint8_t defaultrgbpins[] = { 4,5,6,7,8,9 };
+  #else
+    static const uint8_t defaultrgbpins[] = { 2,3,4,5,6,7 };
+  #endif
   memcpy(rgbpins, pinlist ? pinlist : defaultrgbpins, sizeof rgbpins);
 #if defined(ARDUINO_ARCH_SAMD)
   // All six RGB pins MUST be on the same PORT # as CLK
@@ -147,7 +151,7 @@ void RGBmatrixPanel::init(uint8_t rows, uint8_t a, uint8_t b, uint8_t c,
   addrbport = portOutputRegister(digitalPinToPort(b));
   addrbmask = digitalPinToBitMask(b);
   addrcport = portOutputRegister(digitalPinToPort(c));
-  addrcmask = digitalPinToBitMask(c); 
+  addrcmask = digitalPinToBitMask(c);
   plane     = nPlanes - 1;
   row       = nRows   - 1;
   swapflag  = false;
@@ -870,10 +874,10 @@ void RGBmatrixPanel::updateDisplay(void) {
         ((ptr[i+WIDTH*2] << 2) & 0x0C);
       CLKPORT = tick; // Clock lo
       CLKPORT = tock; // Clock hi
-    } 
+    }
 #elif defined(ARDUINO_ARCH_SAMD) || defined(ARDUINO_ARCH_ESP32)
     for (int i=0; i<WIDTH; i++) {
-      byte b = 
+      byte b =
 	( ptr[i]         << 6)         |
         ((ptr[i+WIDTH]   << 4) & 0x30) |
         ((ptr[i+WIDTH*2] << 2) & 0x0C);
@@ -886,4 +890,3 @@ void RGBmatrixPanel::updateDisplay(void) {
 #endif
   }
 }
-
