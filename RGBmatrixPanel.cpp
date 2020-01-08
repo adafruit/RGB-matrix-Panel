@@ -744,8 +744,21 @@ void RGBmatrixPanel::updateDisplay(void) {
     // latch now, so update the row address lines before we do that:
     if(row & 0x1)   *addraport |=  addramask;
     else            *addraport &= ~addramask;
+    // MYSTERY: certain matrices REQUIRE these delays ???
+    // And only in these two spots...other address lines don't need them!
+    // This is true whether AVR or ARM; only the period is different.
+#if defined(ARDUINO_ARCH_SAMD)
+    delayMicroseconds(2);
+#else
+    delayMicroseconds(4);
+#endif
     if(row & 0x2)   *addrbport |=  addrbmask;
     else            *addrbport &= ~addrbmask;
+#if defined(ARDUINO_ARCH_SAMD)
+    delayMicroseconds(2);
+#else
+    delayMicroseconds(4);
+#endif
     if(row & 0x4)   *addrcport |=  addrcmask;
     else            *addrcport &= ~addrcmask;
     if(nRows > 8) {
