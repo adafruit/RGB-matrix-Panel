@@ -67,15 +67,15 @@ BSD license, all text above must be included in any redistribution.
  #define DATADIR  DDRA
  #define CLKPORT  PORTB
 #elif defined(__AVR_ATmega32U4__)
- // Arduino Leonardo: this is vestigial code an unlikely to ever be
- // finished -- DO NOT USE!!!  Unlike the Uno, digital pins 2-7 do NOT
- // map to a contiguous port register, dashing our hopes for compatible
- // wiring.  Making this work would require significant changes both to
- // the bit-shifting code in the library, and how this board is wired to
- // the LED matrix.  Bummer.
- #define DATAPORT PORTD
- #define DATADIR  DDRD
- #define CLKPORT  PORTB
+ // Arduino Leonardo: the trick to get this library to work with the leonardo is
+ // to use the PORTF which has exactly six pins (PF0, PF1, PF4, PF5, PF6 and PF7).
+ // These pins are A5, A4, A3, A2, A1, A0 on the Arduino header.
+ // Because PF2 and PF3 does not exist, the leonardo required some special modifications.
+ // PORTD is used for the clock pin. You can use : D12, D6, D4, D3, D2 or D0 / D1 (if you don't use Serial1).
+ // PORTB should be used for the address pin. D8, D9, D10 and D11 are recommended.
+ #define DATAPORT PORTF
+ #define DATADIR  DDRF
+ #define CLKPORT  PORTD
 #elif defined(ARDUINO_ARCH_SAMD) || defined(ARDUINO_ARCH_ESP32)
   // Support for ATSAMD21-based boards, done with PortType!
 #else
@@ -220,7 +220,11 @@ void RGBmatrixPanel::begin(void) {
 
   // The high six bits of the data port are set as outputs;
   // Might make this configurable in the future, but not yet.
+#if defined(__AVR_ATmega32U4__)
+  DATADIR  = B11110011;
+#else
   DATADIR  = B11111100;
+#endif
   DATAPORT = 0;
 
 #elif defined(ARDUINO_ARCH_SAMD)
@@ -519,30 +523,53 @@ void RGBmatrixPanel::drawPixel(int16_t x, int16_t y, uint16_t c) {
     ptr = &matrixbuff[backindex][y * WIDTH * (nPlanes - 1) + x]; // Base addr
     // Plane 0 is a tricky case -- its data is spread about,
     // stored in least two bits not used by the other planes.
+#if defined(__AVR_ATmega32U4__)
+    ptr[WIDTH*2] &= ~B00001100;           // Plane 0 R,G mask out in one op
+    if(r & 1) ptr[WIDTH*2] |=  B00000100; // Plane 0 R: 64 bytes ahead, bit 2
+    if(g & 1) ptr[WIDTH*2] |=  B00001000; // Plane 0 G: 64 bytes ahead, bit 3
+    if(b & 1) ptr[WIDTH]   |=  B00000100; // Plane 0 B: 32 bytes ahead, bit 2
+    else      ptr[WIDTH]   &= ~B00000100; // Plane 0 B unset; mask out
+#else
     ptr[WIDTH*2] &= ~B00000011;           // Plane 0 R,G mask out in one op
     if(r & 1) ptr[WIDTH*2] |=  B00000001; // Plane 0 R: 64 bytes ahead, bit 0
     if(g & 1) ptr[WIDTH*2] |=  B00000010; // Plane 0 G: 64 bytes ahead, bit 1
     if(b & 1) ptr[WIDTH]   |=  B00000001; // Plane 0 B: 32 bytes ahead, bit 0
     else      ptr[WIDTH]   &= ~B00000001; // Plane 0 B unset; mask out
+#endif
     // The remaining three image planes are more normal-ish.
     // Data is stored in the high 6 bits so it can be quickly
     // copied to the DATAPORT register w/6 output lines.
     for(; bit < limit; bit <<= 1) {
+#if defined(__AVR_ATmega32U4__)
+      *ptr &= ~B00010011;            // Mask out R,G,B in one op
+      if(r & bit) *ptr |= B00000001; // Plane N R: bit 0
+      if(g & bit) *ptr |= B00000010; // Plane N G: bit 2
+      if(b & bit) *ptr |= B00010000; // Plane N B: bit 4
+#else
       *ptr &= ~B00011100;            // Mask out R,G,B in one op
       if(r & bit) *ptr |= B00000100; // Plane N R: bit 2
       if(g & bit) *ptr |= B00001000; // Plane N G: bit 3
       if(b & bit) *ptr |= B00010000; // Plane N B: bit 4
+#endif
       ptr  += WIDTH;                 // Advance to next bit plane
     }
   } else {
     // Data for the lower half of the display is stored in the upper
     // bits, except for the plane 0 stuff, using 2 least bits.
     ptr = &matrixbuff[backindex][(y - nRows) * WIDTH * (nPlanes - 1) + x];
+#if defined(__AVR_ATmega32U4__)
+    *ptr &= ~B00001100;                  // Plane 0 G,B mask out in one op
+    if(r & 1)  ptr[WIDTH] |=  B00001000; // Plane 0 R: 32 bytes ahead, bit 3
+    else       ptr[WIDTH] &= ~B00001000; // Plane 0 R unset; mask out
+    if(g & 1) *ptr        |=  B00000100; // Plane 0 G: bit 2
+    if(b & 1) *ptr        |=  B00001000; // Plane 0 B: bit 2
+#else
     *ptr &= ~B00000011;                  // Plane 0 G,B mask out in one op
     if(r & 1)  ptr[WIDTH] |=  B00000010; // Plane 0 R: 32 bytes ahead, bit 1
     else       ptr[WIDTH] &= ~B00000010; // Plane 0 R unset; mask out
     if(g & 1) *ptr        |=  B00000001; // Plane 0 G: bit 0
     if(b & 1) *ptr        |=  B00000010; // Plane 0 B: bit 0
+#endif
     for(; bit < limit; bit <<= 1) {
       *ptr &= ~B11100000;            // Mask out R,G,B in one op
       if(r & bit) *ptr |= B00100000; // Plane N R: bit 5
@@ -869,10 +896,17 @@ void RGBmatrixPanel::updateDisplay(void) {
     // because binary coded modulation is used (not PWM), that plane
     // has the longest display interval, so the extra work fits.
     for(i=0; i<WIDTH; i++) {
+#if defined(__AVR_ATmega32U4__)
+      DATAPORT =
+        ((ptr[i]         << 4) & B11000000) |
+        ((ptr[i+WIDTH]   << 2) & B00110000) |
+        ((ptr[i+WIDTH*2] >> 2) & B00000011);
+#else
       DATAPORT =
         ( ptr[i]         << 6)         |
         ((ptr[i+WIDTH]   << 4) & 0x30) |
         ((ptr[i+WIDTH*2] << 2) & 0x0C);
+#endif
       CLKPORT = tick; // Clock lo
       CLKPORT = tock; // Clock hi
     } 
