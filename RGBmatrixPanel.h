@@ -21,7 +21,7 @@ class RGBmatrixPanel : public Adafruit_GFX {
 
   // Constructor for 16x32 panel:
   RGBmatrixPanel(uint8_t a, uint8_t b, uint8_t c,
-    uint8_t clk, uint8_t lat, uint8_t oe, boolean dbuf
+    uint8_t clk, uint8_t lat, uint8_t oe, boolean dbuf, uint8_t width=32
 #if defined(ARDUINO_ARCH_SAMD) || defined(ARDUINO_ARCH_ESP32)
     ,uint8_t *pinlist=NULL
 #endif
