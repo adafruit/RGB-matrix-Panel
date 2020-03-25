@@ -157,12 +157,12 @@ void RGBmatrixPanel::init(uint8_t rows, uint8_t a, uint8_t b, uint8_t c,
 // Constructor for 16x32 panel:
 RGBmatrixPanel::RGBmatrixPanel(
   uint8_t a, uint8_t b, uint8_t c,
-  uint8_t clk, uint8_t lat, uint8_t oe, boolean dbuf
+  uint8_t clk, uint8_t lat, uint8_t oe, boolean dbuf, uint8_t width=32
 #if defined(ARDUINO_ARCH_SAMD) || defined(ARDUINO_ARCH_ESP32)
     ,uint8_t *pinlist
 #endif
-  ) : Adafruit_GFX(32, 16) {
-  init(8, a, b, c, clk, lat, oe, dbuf, 32
+  ) : Adafruit_GFX(width, 16) {
+  init(8, a, b, c, clk, lat, oe, dbuf, width
 #if defined(ARDUINO_ARCH_SAMD) || defined(ARDUINO_ARCH_ESP32)
     ,pinlist
 #endif
