@@ -1,3 +1,5 @@
+# Adafruit RGB Matrix Panel library [![Build Status](https://github.com/adafruit/RGB-matrix-Panel/workflows/Arduino%20Library%20CI/badge.svg)](https://github.com/adafruit/RGB-matrix-Panel/actions)
+
 This is an Arduino library for our 16x32 and 32x32 RGB LED matrix panels
 
 Pick one up at http://www.adafruit.com/products/420 & http://www.adafruit.com/products/607 !
