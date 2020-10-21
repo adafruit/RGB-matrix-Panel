@@ -1,6 +1,7 @@
 // plasma demo for Adafruit RGBmatrixPanel library.
 // Demonstrates double-buffered animation our 16x32 RGB LED matrix:
 // http://www.adafruit.com/products/420
+// DOUBLE-BUFFERED ANIMATION DOES NOT WORK WITH ARDUINO UNO or METRO 328.
 
 // Written by Limor Fried/Ladyada & Phil Burgess/PaintYourDragon
 // for Adafruit Industries.
@@ -10,14 +11,13 @@
 
 // Most of the signal pins are configurable, but the CLK pin has some
 // special constraints.  On 8-bit AVR boards it must be on PORTB...
-// Pin 8 works on the Arduino Uno & compatibles (e.g. Adafruit Metro),
 // Pin 11 works on the Arduino Mega.  On 32-bit SAMD boards it must be
 // on the same PORT as the RGB data pins (D2-D7)...
 // Pin 8 works on the Adafruit Metro M0 or Arduino Zero,
 // Pin A4 works on the Adafruit Metro M4 (if using the Adafruit RGB
 // Matrix Shield, cut trace between CLK pads and run a wire to A4).
 
-#define CLK  8   // USE THIS ON ARDUINO UNO, ADAFRUIT METRO M0, etc.
+#define CLK  8   // USE THIS ON ADAFRUIT METRO M0, etc.
 //#define CLK A4 // USE THIS ON METRO M4 (not M0)
 //#define CLK 11 // USE THIS ON ARDUINO MEGA
 #define OE   9
@@ -30,10 +30,6 @@
 // buttery smooth animation.  Note that NOTHING WILL SHOW ON THE DISPLAY
 // until the first call to swapBuffers().  This is normal.
 RGBmatrixPanel matrix(A, B, C, CLK, LAT, OE, true);
-// Double-buffered mode consumes nearly all the RAM available on the
-// Arduino Uno -- only a handful of free bytes remain.  So this code uses
-// a bunch of precalculated data in tables to minimize RAM usage and speed
-// things up.
 
 static const int8_t PROGMEM sinetab[256] = {
      0,   2,   5,   8,  11,  15,  18,  21,

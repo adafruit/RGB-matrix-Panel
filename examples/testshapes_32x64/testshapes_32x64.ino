@@ -8,7 +8,6 @@
 
 // Most of the signal pins are configurable, but the CLK pin has some
 // special constraints.  On 8-bit AVR boards it must be on PORTB...
-// Pin 8 works on the Arduino Uno & compatibles (e.g. Adafruit Metro),
 // Pin 11 works on the Arduino Mega.  On 32-bit SAMD boards it must be
 // on the same PORT as the RGB data pins (D2-D7)...
 // Pin 8 works on the Adafruit Metro M0 or Arduino Zero,
