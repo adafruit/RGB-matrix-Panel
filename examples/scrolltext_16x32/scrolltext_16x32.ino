@@ -36,7 +36,7 @@ RGBmatrixPanel matrix(A, B, C, CLK, LAT, OE, true);
 
 const char str[] PROGMEM = "Adafruit 16x32 RGB LED Matrix";
 int16_t    textX         = matrix.width(),
-           textMin       = sizeof(str) * -12,
+           textMin       = (int16_t)sizeof(str) * -12,
            hue           = 0;
 int8_t ball[3][4] = {
   {  3,  0,  1,  1 }, // Initial X,Y pos & velocity for 3 bouncy balls

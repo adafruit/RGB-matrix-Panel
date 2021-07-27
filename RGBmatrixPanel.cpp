@@ -344,8 +344,8 @@ void RGBmatrixPanel::begin(void) {
   tim_config.divider = 2; // Run Timer at 40 MHz
   tim_config.counter_dir = TIMER_COUNT_UP;
   tim_config.counter_en = TIMER_PAUSE;
-  tim_config.alarm_en = true;
-  tim_config.auto_reload = true;
+  tim_config.alarm_en = TIMER_ALARM_EN;
+  tim_config.auto_reload = TIMER_AUTORELOAD_EN;
   tim_config.intr_type = TIMER_INTR_LEVEL;
 
   timer_init(TIMER_GROUP_1, TIMER_0, &tim_config);
@@ -912,7 +912,7 @@ static timg_dev_t *TG[2] = {&TIMERG0, &TIMERG1};
 static portMUX_TYPE timer_spinlock[TIMER_GROUP_MAX] = {
     portMUX_INITIALIZER_UNLOCKED, portMUX_INITIALIZER_UNLOCKED};
 portENTER_CRITICAL(&timer_spinlock[TIMER_GROUP_1]);
-TG[TIMER_GROUP_1]->hw_timer[TIMER_0].alarm_high = (uint32_t)(duration >> 32);
+TG[TIMER_GROUP_1]->hw_timer[TIMER_0].alarm_high = 0;
 TG[TIMER_GROUP_1]->hw_timer[TIMER_0].alarm_low = (uint32_t)duration;
 portEXIT_CRITICAL(&timer_spinlock[TIMER_GROUP_1]);
 #endif                  // ARDUINO_ARCH_SAMD
