@@ -944,17 +944,17 @@ portEXIT_CRITICAL(&timer_spinlock[TIMER_GROUP_1]);
 // up on opportunity for post-increment addressing mode.
 // 5 instruction ticks per 'pew' = 160 ticks total
 #define pew                                                                    \
-  asm volatile("ld  __tmp_reg__, %a[ptr]+"                                     \
-               "\n\t"                                                          \
-               "out %[data]    , __tmp_reg__"                                  \
-               "\n\t"                                                          \
-               "out %[clk]     , %[tick]"                                      \
-               "\n\t"                                                          \
-               "out %[clk]     , %[tock]"                                      \
-               "\n" ::[ptr] "e"(ptr),                                          \
-               [ data ] "I"(_SFR_IO_ADDR(DATAPORT)),                           \
-               [ clk ] "I"(_SFR_IO_ADDR(CLKPORT)), [ tick ] "r"(tick),         \
-               [ tock ] "r"(tock));
+  asm volatile(                                                                \
+      "ld  __tmp_reg__, %a[ptr]+"                                              \
+      "\n\t"                                                                   \
+      "out %[data]    , __tmp_reg__"                                           \
+      "\n\t"                                                                   \
+      "out %[clk]     , %[tick]"                                               \
+      "\n\t"                                                                   \
+      "out %[clk]     , %[tock]"                                               \
+      "\n" ::[ptr] "e"(ptr),                                                   \
+      [data] "I"(_SFR_IO_ADDR(DATAPORT)), [clk] "I"(_SFR_IO_ADDR(CLKPORT)),    \
+      [tick] "r"(tick), [tock] "r"(tock));
 #elif defined(ARDUINO_ARCH_SAMD) || defined(ARDUINO_ARCH_ESP32)
 #ifdef __SAMD51__ // No IOBUS on SAMD51
 #define pew                                                                    \
