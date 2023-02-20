@@ -974,13 +974,12 @@ portEXIT_CRITICAL(&timer_spinlock[TIMER_GROUP_1]);
     pew pew pew pew pew pew pew pew pew pew pew pew pew pew pew pew pew pew pew
         pew pew pew pew pew pew pew pew pew pew pew pew pew
 
-        if (WIDTH == 64) {
-      pew pew pew pew pew pew pew pew pew pew pew pew pew pew pew pew pew pew
-          pew pew pew pew pew pew pew pew pew pew pew pew pew pew
-    }
+        if (WIDTH == 64){
+            pew pew pew pew pew pew pew pew pew pew pew pew pew pew pew pew pew
+                pew pew pew pew pew pew pew pew pew pew pew pew pew pew pew}
 
 #if defined(ARDUINO_ARCH_SAMD) || defined(ARDUINO_ARCH_ESP32)
-    *outclrreg = clkmask; // Set clock low
+            *outclrreg = clkmask; // Set clock low
 #endif
 
     buffptr = ptr; //+= 32;
